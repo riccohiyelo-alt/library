@@ -71,9 +71,9 @@ local Library do
         FadeSpeed = 0.2,
 
         Folders = {
-            Directory = "scoot",
-            Configs = "scoot/Configs",
-            Assets = "scoot/Assets",
+            Directory = "NeverPaste",
+            Configs = "NeverPaste/Configs",
+            Assets = "NeverPaste/Assets",
         },
 
         Images = {
