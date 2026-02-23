@@ -1935,6 +1935,13 @@
 		function library:esp_preview(properties)
 			local cfg = {items = {}, objects = {};}
 
+			flags["Name_Color"] = flags["Name_Color"] or {Color = rgb(255, 255, 255)}
+			flags["Box_Color"] = flags["Box_Color"] or {Color = rgb(255, 255, 255)}
+			flags["Health_Low"] = flags["Health_Low"] or {Color = rgb(255, 0, 0)}
+			flags["Health_High"] = flags["Health_High"] or {Color = rgb(0, 255, 0)}
+			flags["Distance_Color"] = flags["Distance_Color"] or {Color = rgb(255, 255, 255)}
+			flags["Weapon_Color"] = flags["Weapon_Color"] or {Color = rgb(255, 255, 255)}
+
 			local items = cfg.items; do 
 				items.preview = library:create("ImageLabel", {
 					Parent = self.holder;
@@ -2258,9 +2265,7 @@
 					return 
 				end
 
-				local humanoid = character.Humanoid
-				
-				local multiplier = humanoid.MaxHealth * math.abs(math.sin(tick() * 2)) / humanoid.MaxHealth
+				local multiplier = 1
 				local color = flags[ "Health_Low" ].Color:Lerp( flags["Health_High"].Color, multiplier)
 				
 				objects[ "healthbar" ].Size = UDim2.new(1, -2, multiplier, -2)
@@ -2269,7 +2274,7 @@
 			end -- wtf why diff func defining
 
 			function cfg.refresh_elements( )                                
-				objects.holder.Parent = flags["Enabled"] and items.viewportframe or library.cache
+				objects.holder.Parent = flags["Enabled"] and items.preview or library.cache
 
 				local temp = {
 					["Names"] = objects["name"]; 
