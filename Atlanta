@@ -1933,76 +1933,26 @@
 		end 
 
 		function library:esp_preview(properties)
-			local cfg = {items = {}, rotation = 0; objects = {};}
-
-			local base_character = lp.Character or lp.CharacterAdded:Wait()
-			if not base_character then
-				return cfg
-			end
-
-			base_character.Archivable = true
-			local character = base_character:Clone()
-
-			local animate = character:FindFirstChild("Animate")
-			if animate then
-				animate:Destroy()
-			end
-
-			local primary = character:FindFirstChild("HumanoidRootPart")
-				or character:FindFirstChild("UpperTorso")
-				or character:FindFirstChild("Torso")
-				or character:FindFirstChildWhichIsA("BasePart", true)
-			if primary then
-				character.PrimaryPart = primary
-			else
-				local fallback = Instance.new("Part")
-				fallback.Name = "PreviewRoot"
-				fallback.Anchored = true
-				fallback.CanCollide = false
-				fallback.Transparency = 1
-				fallback.Size = vec3(1, 1, 1)
-				fallback.Parent = character
-				character.PrimaryPart = fallback
-			end
+			local cfg = {items = {}, objects = {};}
 
 			local items = cfg.items; do 
-				items.viewportframe = library:create( "ViewportFrame" , {
+				items.preview = library:create("ImageLabel", {
 					Parent = self.holder;
+					Name = "\0";
 					BackgroundTransparency = 1;
 					Size = dim2(1, 0, 0, 220);
 					BorderColor3 = rgb(0, 0, 0);
 					ZIndex = 1;
 					Position = dim2(0, 0, 0, 10);
 					BorderSizePixel = 0;
-					BackgroundColor3 = rgb(255, 255, 255)
+					Image = "rbxassetid://100857536142875";
+					ScaleType = Enum.ScaleType.Fit;
 				});
-				
-				items.camera = library:create( "Camera" , {
-					FieldOfView = 70.00022888183594;
-					CameraType = Enum.CameraType.Track;
-					Focus = cfr(0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1); -- bro wtf is this serializer doing
-					CFrame = cfr(0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1);
-					Parent = items.viewportframe;
-					Name = "\0"
-				}); 
-
-				items.viewportframe.CurrentCamera = items.camera -- sick
-				character.Parent = items.viewportframe
-
-				items.camera.CameraSubject = character
-
-				library:connection(run.RenderStepped, function()
-					task.wait()
-					cfg.rotation = (cfg.rotation + 0.5) % 360
-					if character and character.Parent then
-						character:PivotTo(cfr(vec3(0, 1, -6)) * angle(0, math.rad(cfg.rotation), 0))
-					end
-				end)
 			end 
 
 			local objects = cfg.objects; do 
 				objects[ "holder" ] = library:create( "Frame" , {
-					Parent = items.viewportframe;
+					Parent = items.preview;
 					Name = "\0";
 					BackgroundTransparency = 1;
 					Position = dim2(0.5, 0, 0.5, 10);
