@@ -1943,7 +1943,7 @@
 			flags["Weapon_Color"] = flags["Weapon_Color"] or {Color = rgb(255, 255, 255)}
 
 			local items = cfg.items; do 
-				items.preview = library:create("ImageLabel", {
+				items.preview = library:create("ViewportFrame", {
 					Parent = self.holder;
 					Name = "\0";
 					BackgroundTransparency = 1;
@@ -1952,9 +1952,82 @@
 					ZIndex = 1;
 					Position = dim2(0, 0, 0, 10);
 					BorderSizePixel = 0;
-					Image = "rbxassetid://100857536142875";
-					ScaleType = Enum.ScaleType.Fit;
 				});
+
+				items.camera = library:create("Camera", {
+					FieldOfView = 70;
+					CameraType = Enum.CameraType.Scriptable;
+					CFrame = cfr(0, 0, 5);
+					Parent = items.preview;
+					Name = "\0";
+				});
+
+				items.preview.CurrentCamera = items.camera
+
+				local function pick_preview_object(obj)
+					if not obj then return nil end
+					if obj:IsA("Model") or obj:IsA("BasePart") then
+						return obj
+					end
+
+					local model = obj:FindFirstChildWhichIsA("Model", true)
+					if model then return model end
+
+					return obj:FindFirstChildWhichIsA("BasePart", true)
+				end
+
+				local preview_obj
+				local ok, objects = pcall(game.GetObjects, game, "rbxassetid://100857536142875")
+				if ok and type(objects) == "table" then
+					for _, obj in next, objects do
+						preview_obj = pick_preview_object(obj)
+						if preview_obj then break end
+					end
+				end
+
+				if preview_obj then
+					if preview_obj:IsA("BasePart") then
+						local model = Instance.new("Model")
+						preview_obj.Parent = model
+						preview_obj = model
+					end
+
+					preview_obj.Parent = items.preview
+
+					local primary = preview_obj:FindFirstChild("HumanoidRootPart")
+						or preview_obj:FindFirstChild("UpperTorso")
+						or preview_obj:FindFirstChild("Torso")
+						or preview_obj:FindFirstChildWhichIsA("BasePart", true)
+					if primary then
+						preview_obj.PrimaryPart = primary
+					end
+
+					local ok_bb, cf, size = pcall(function()
+						return preview_obj:GetBoundingBox()
+					end)
+
+					if ok_bb then
+						preview_obj:PivotTo(cfr(0, 0, 0))
+						local max_dim = math.max(size.X, size.Y, size.Z)
+						local distance = max_dim > 0 and (max_dim * 1.6) or 6
+						items.camera.CFrame = cfr(vec3(0, 0, distance), vec3(0, 0, 0))
+					else
+						items.camera.CFrame = cfr(vec3(0, 0, 6), vec3(0, 0, 0))
+					end
+				else
+					items.preview_fallback = library:create("ImageLabel", {
+						Parent = items.preview;
+						Name = "\0";
+						BackgroundTransparency = 1;
+						Size = dim2(1, 0, 1, 0);
+						BorderColor3 = rgb(0, 0, 0);
+						ZIndex = 1;
+						Position = dim2(0, 0, 0, 0);
+						BorderSizePixel = 0;
+						Image = "rbxthumb://type=Asset&id=100857536142875&w=420&h=420";
+						ScaleType = Enum.ScaleType.Fit;
+					})
+				end
 			end 
 
 			local objects = cfg.objects; do 
