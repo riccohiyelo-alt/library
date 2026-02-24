@@ -69,12 +69,11 @@
 
 -- library init
 	local library = {
-		directory = "NeverPaste",
+		directory = "Atlanta",
 		folders = {
 			"/fonts",
 			"/configs",
-			"/images",
-			"/Skins"
+			"/images"
 		},
 		flags = {},
 		config_flags = {},
@@ -2335,61 +2334,85 @@
 			end 
 
 			cfg.change_health = function()
-				if flags[ "healthbar_holder" ] and flags[ "healthbar_holder" ].Parent ~= objects[ "holder" ] then 
+				if not objects[ "healthbar_holder" ] or objects[ "healthbar_holder" ].Parent ~= objects[ "holder" ] then 
 					return 
 				end
 
+				local low_ref = flags[ "Health_Low" ]
+				local high_ref = flags[ "Health_High" ]
+				local low_color = (type(low_ref) == "table" and typeof(low_ref.Color) == "Color3" and low_ref.Color) or rgb(255, 0, 0)
+				local high_color = (type(high_ref) == "table" and typeof(high_ref.Color) == "Color3" and high_ref.Color) or rgb(0, 255, 0)
 				local multiplier = 1
-				local color = flags[ "Health_Low" ].Color:Lerp( flags["Health_High"].Color, multiplier)
+				local color = low_color:Lerp(high_color, multiplier)
 				
 				objects[ "healthbar" ].Size = UDim2.new(1, -2, multiplier, -2)
 				objects[ "healthbar" ].Position = UDim2.new(0, 1, 1 - multiplier, 1)
 				objects[ "healthbar" ].BackgroundColor3 = color
 			end -- wtf why diff func defining
 
-			function cfg.refresh_elements( )                                
-				objects.holder.Parent = flags["Enabled"] and items.preview or library.cache
-
-				local temp = {
-					["Names"] = objects["name"]; 
-					["Name_Color"] = {objects["name"]};
-					["Healthbar"] = objects[ "healthbar_holder" ];
-					["Distance"] = objects[ "distance" ];
-					["Weapon"] = objects[ "weapon" ];
-					["Distance_Color"] = {objects[ "distance" ]};
-					["Weapon_Color"] = {objects[ "weapon" ]};
-				}
-
-				for flag,object in temp do 
-					if type(object) == "table" then 
-						object[1].TextColor3 = flags[flag].Color
-					else 
-						object.Parent = flags[flag] and objects[ "holder" ] or library.cache
+			function cfg.refresh_elements( )
+				local function resolve_bool(primary_flag, fallback_flag)
+					local value = flags[primary_flag]
+					if value == nil and fallback_flag ~= nil then
+						value = flags[fallback_flag]
 					end
-				end 
-				
-				local is_corner = flags[ "Box_Type" ] == "Corner"
+					return value == true
+				end
 
-				if flags["Boxes"] then 
-					if is_corner then 
-						objects[ "corners" ].Parent = objects["holder"]
-						objects[ "box_handler" ].Parent = library.cache
-						objects[ "box_outline" ].Parent = library.cache
-					else 
-						objects[ "box_handler" ].Parent = objects[ "holder" ]
-						objects[ "box_outline" ].Parent = objects[ "holder" ]
-						objects[ "corners" ].Parent = library.cache
-					end 
+				local function resolve_color(flag_name, fallback)
+					local ref = flags[flag_name]
+					if type(ref) == "table" and typeof(ref.Color) == "Color3" then
+						return ref.Color
+					end
+					if typeof(ref) == "Color3" then
+						return ref
+					end
+					return fallback
+				end
+
+				objects.holder.Parent = (flags["Enabled"] ~= false) and items.preview or library.cache
+
+				objects["name"].Parent = resolve_bool("Names", "EspName") and objects["holder"] or library.cache
+				objects["healthbar_holder"].Parent = resolve_bool("Healthbar", "EspHealthBar") and objects["holder"] or library.cache
+				objects["distance"].Parent = resolve_bool("Distance", "EspDistance") and objects["holder"] or library.cache
+				objects["weapon"].Parent = resolve_bool("Weapon") and objects["holder"] or library.cache
+
+				objects["name"].TextColor3 = resolve_color("Name_Color", rgb(255, 255, 255))
+				objects["distance"].TextColor3 = resolve_color("Distance_Color", rgb(255, 255, 255))
+				objects["weapon"].TextColor3 = resolve_color("Weapon_Color", rgb(255, 255, 255))
+
+				local is_corner = tostring(flags["Box_Type"] or "Default") == "Corner"
+				local boxes_enabled = resolve_bool("Boxes", "EspBox")
+
+				if boxes_enabled then
+					if is_corner then
+						objects["corners"].Parent = objects["holder"]
+						objects["box_handler"].Parent = library.cache
+						objects["box_outline"].Parent = library.cache
+					else
+						objects["box_handler"].Parent = objects["holder"]
+						objects["box_outline"].Parent = objects["box_handler"]
+						objects["corners"].Parent = library.cache
+					end
 				else
-					objects[ "corners" ].Parent =  library.cache
-					objects[ "box_handler" ].Parent = library.cache
-					objects[ "box_outline" ].Parent = library.cache
-				end 
+					objects["corners"].Parent = library.cache
+					objects["box_handler"].Parent = library.cache
+					objects["box_outline"].Parent = library.cache
+				end
 
-				objects[ "box_color" ].Color = flags["Box_Color"].Color 
+				local box_color = resolve_color("Box_Color", rgb(255, 255, 255))
+				objects["box_color"].Color = box_color
+				if objects["box_outline"] and objects["box_outline"]:IsA("UIStroke") then
+					objects["box_outline"].Enabled = boxes_enabled and not is_corner
+				end
 
-				for _, corner in objects[ "corners" ]:GetChildren() do
-					corner.Frame.BackgroundColor3 = flags["Box_Color"].Color
+				for _, corner in ipairs(objects["corners"]:GetChildren()) do
+					if corner:IsA("Frame") then
+						local inner = corner:FindFirstChildWhichIsA("Frame")
+						if inner then
+							inner.BackgroundColor3 = box_color
+						end
+					end
 				end
 			end
 
