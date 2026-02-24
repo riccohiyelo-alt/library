@@ -1796,7 +1796,7 @@
 					anchor_point = vec2(0, 0),
 					size = dim2(0, 300, 0, 325),
 					position = dim2(0, style.items.main_holder.AbsolutePosition.X, 0, style.items.main_holder.AbsolutePosition.Y + style.items.main_holder.AbsoluteSize.Y + 2),
-					image = "rbxassetid://77684377836328",
+					image = "",
 				})  
 				
 				local items = holder.items
