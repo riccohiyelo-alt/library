@@ -69,11 +69,12 @@
 
 -- library init
 	local library = {
-		directory = "Atlanta",
+		directory = "NeverPaste",
 		folders = {
 			"/fonts",
 			"/configs",
-			"/images"
+			"/images",
+			"/skins"
 		},
 		flags = {},
 		config_flags = {},
