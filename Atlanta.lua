@@ -2025,7 +2025,7 @@
 						ZIndex = 1;
 						Position = dim2(0, 0, 0, 0);
 						BorderSizePixel = 0;
-						Image = "rbxthumb://type=Asset&id=100857536142875&w=420&h=420";
+						Image = "";
 						ScaleType = Enum.ScaleType.Fit;
 					})
 				end
