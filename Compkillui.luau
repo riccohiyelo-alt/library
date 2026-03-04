@@ -1,20 +1,3 @@
---[[
-    		Compkiller Interface
-
-    Author: 4lpaca
-    License: MIT
-    Github: https://github.com/4lpaca-pin/CompKiller
-    Original: compkiller.net
-
-        Version: 2.6
-    - Improved Performance Mode
-    	Compkiller:OptimizeMode(< boolean >)
-  	- Added Auto Color Logo
-		Compkiller:CustomIconHighlight()
---]]
-
---- Export Types ---
-
 export type cloneref = (target: Instance) -> Instance;
 
 export type Window = {
@@ -1386,7 +1369,7 @@ function Compkiller:_GetIcon(name : string , font_aws) : string
 	return Compkiller.Lucide['lucide-'..tostring(name)] or Compkiller.Lucide[name] or Compkiller.Lucide[tostring(name)] or Compkiller.FontAwesome[name] or name;
 end;
 
-function "" : string
+function Compkiller:_RandomString() : string
 	return "CK="..string.char(math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102));	
 end;
 
