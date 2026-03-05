@@ -1,3 +1,20 @@
+--[[
+    		Compkiller Interface
+
+    Author: 4lpaca
+    License: MIT
+    Github: https://github.com/4lpaca-pin/CompKiller
+    Original: compkiller.net
+
+        Version: 2.6
+    - Improved Performance Mode
+    	Compkiller:OptimizeMode(< boolean >)
+  	- Added Auto Color Logo
+		Compkiller:CustomIconHighlight()
+--]]
+
+--- Export Types ---
+
 export type cloneref = (target: Instance) -> Instance;
 
 export type Window = {
@@ -205,15 +222,125 @@ end);
 getgenv = getgenv or getfenv;
 
 -- Please ignore the ugly code. [Custom File System] --
--- [Custom File System Replaced with Standard Setup, Like Atlanta]
-local ParentDir = "NeverPaste"
+if game:GetService('RunService'):IsStudio() then
+	local BaseWorkspace = Instance.new('Folder',game:GetService("ReplicatedFirst"));
 
-if not isfolder(ParentDir) then
-    makefolder(ParentDir)
-end
-if not isfolder(ParentDir.."/configs") then
-    makefolder(ParentDir.."/configs")
-end
+	BaseWorkspace.Name = tostring(string.char(math.random(50,120)))..tostring(string.char(math.random(50,120)))..tostring(string.char(math.random(50,120)))..tostring(string.char(math.random(50,120)))..tostring(string.char(math.random(50,120)))..tostring(string.char(math.random(50,120)));
+
+	local __get_path_c = function(path)
+		return (string.find(path,'/',1,true) and string.split(path,'/')) or (string.find(path,'\\',1,true) and string.split(path,'\\')) or {path};
+	end;
+
+	local __get_path = function(path)
+		local main = __get_path_c(path);
+
+		local block = BaseWorkspace;
+
+		for i,v in next , main do
+			block = block[v];
+		end;
+
+		return block;
+	end;
+
+	getgenv().readfile = function(path)
+		local path : StringValue = __get_path(path);
+
+		return path.Value;
+	end;
+
+	getgenv().isfile = function(path)
+		local success , message = pcall(function()
+			return __get_path(path);
+		end);
+
+		if success and not message:IsA("Folder") then
+			return true;
+		end;
+
+		return false;
+	end;
+
+	getgenv().isfolder = function(path)
+		local success , message = pcall(function()
+			return __get_path(path);
+		end);
+
+		if success and message:IsA("Folder") then
+			return true;
+		end;
+
+		return false;
+	end;
+
+	getgenv().writefile = function(path,content)
+		local main = __get_path_c(path);
+
+		local block = BaseWorkspace;
+
+		for i,v in next , main do
+			local item = block:FindFirstChild(v);
+			if not item then
+				local c = Instance.new('StringValue',block);
+
+				c.Name = tostring(v);
+				c.Value = content;
+			else
+				if item:IsA('StringValue') and tostring(item) == v then
+					item.Name = tostring(v);
+					item.Value = content;
+				end;
+
+				block = item;
+			end;
+		end;
+	end;
+
+	getgenv().listfiles = function(path)
+		local fold = __get_path(path);
+		local pa = {};
+
+		for i,v in next , fold:GetChildren() do
+			if v:IsA('StringValue') then
+				table.insert(pa,path..'/'..tostring(v));
+			end;
+		end;
+
+		return pa;
+	end;
+
+	getgenv().makefolder = function(path)
+		local main = __get_path_c(path);
+
+		local block = BaseWorkspace;
+
+		for i,v in next , main do
+			local item = block:FindFirstChild(v);
+			if not item then
+				local c = Instance.new('Folder',block);
+
+				c.Name = tostring(v);
+			else
+				block = item;
+			end;
+		end;
+	end;
+
+	getgenv().delfile = function(path)
+		local main = __get_path_c(path);
+
+		local block = BaseWorkspace;
+
+		for i,v in next , main do
+			local item = block:FindFirstChild(v);
+			if item and item:IsA('StringValue') then
+				item:Destroy();
+			else
+				block = item;
+			end;
+		end;
+	end;
+end;
 
 --- Local Variables ---
 local cloneref: cloneref = cloneref or function(f) return f end;
@@ -223,15 +350,8 @@ local TextService: TextService = cloneref(game:GetService('TextService'));
 local RunService: RunService = cloneref(game:GetService('RunService'));
 local Players: Players = cloneref(game:GetService('Players'));
 local HttpService: HttpService = cloneref(game:GetService('HttpService'));
-local GuiService = cloneref(game:GetService('GuiService'));
-local Lighting = cloneref(game:GetService('Lighting'));
-local Stats = cloneref(game:GetService('Stats'));
-local Debris = cloneref(game:GetService('Debris'));
-local SoundService = cloneref(game:GetService('SoundService'));
-local StarterGui = cloneref(game:GetService('StarterGui'));
-local ReplicatedStorage = cloneref(game:GetService('ReplicatedStorage'));
 local LocalPlayer: Player = Players.LocalPlayer;
-local CoreGui = (gethui and gethui()) or (get_hidden_gui and get_hidden_gui()) or cloneref(game:GetService('CoreGui'));
+local CoreGui: PlayerGui = (gethui and gethui()) or (get_hidden_gui and get_hidden_gui()) or cloneref(game:FindFirstChild('CoreGui')) or cloneref(LocalPlayer.PlayerGui);
 local Mouse: Mouse = LocalPlayer:GetMouse();
 local CurrentCamera: Camera? = cloneref(workspace.CurrentCamera);
 
@@ -249,6 +369,7 @@ local Compkiller = {
 	WindowsNil = {},
 	NilFolder = Instance.new('Folder'),
 	ArcylicParent = CurrentCamera,
+	ProtectGui = protect_gui or protectgui or (syn and syn.protect_gui) or function(s) return s; end,
 };
 
 Compkiller.Colors = {
@@ -1444,7 +1565,7 @@ function Compkiller:_Blur(element : Frame , WindowRemote) : RBXScriptSignal
 	Part.Anchored = true;
 	Part.CanCollide = false;
 	Part.CanQuery = false;
-	Part.CollisionGroup = "";
+	Part.CollisionGroup = Compkiller:_RandomString();
 	Part.Size = Vector3.new(1, 1, 1) * 0.01;
 	Part.Color = Color3.fromRGB(0,0,0);
 
@@ -1453,9 +1574,9 @@ function Compkiller:_Blur(element : Frame , WindowRemote) : RBXScriptSignal
 	DepthOfField.FocusDistance = 0;
 	DepthOfField.InFocusRadius = 1000;
 	DepthOfField.NearIntensity = 1;
-	DepthOfField.Name = "";
+	DepthOfField.Name = Compkiller:_RandomString();
 
-	Part.Name = "";
+	Part.Name = Compkiller:_RandomString();
 
 	local disconnect;
 
@@ -1617,7 +1738,7 @@ end;
 function Compkiller.__SIGNAL(default)
 	local Bindable = Instance.new('BindableEvent');
 
-	Bindable.Name = "";
+	Bindable.Name = string.sub(tostring({}),7);
 
 	Bindable:SetAttribute('Value',default);
 
@@ -1737,7 +1858,7 @@ function Compkiller:_AddLinkValue(Name , Default , GlobalBlock , LinkValues , re
 		local ToggleValue = Instance.new("Frame")
 		local UICorner_2 = Instance.new("UICorner")
 
-		Toggle.Name = ""
+		Toggle.Name = Compkiller:_RandomString()
 		Toggle.Parent = LinkValues
 		Toggle.BackgroundColor3 = Compkiller.Colors.DropColor
 		Toggle.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -1762,7 +1883,7 @@ function Compkiller:_AddLinkValue(Name , Default , GlobalBlock , LinkValues , re
 			Property = "Color"
 		})
 
-		ToggleValue.Name = ""
+		ToggleValue.Name = Compkiller:_RandomString()
 		ToggleValue.Parent = Toggle
 		ToggleValue.AnchorPoint = Vector2.new(0.5, 0.5)
 		ToggleValue.BackgroundColor3 = Compkiller.Colors.SwitchColor
@@ -1867,7 +1988,7 @@ function Compkiller:_AddLinkValue(Name , Default , GlobalBlock , LinkValues , re
 		local UIStroke = Instance.new("UIStroke")
 		local UICorner = Instance.new("UICorner")
 
-		ColorPicker.Name = ""
+		ColorPicker.Name = Compkiller:_RandomString()
 		ColorPicker.Parent = LinkValues
 		ColorPicker.BackgroundTransparency = 1.000
 		ColorPicker.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -1876,7 +1997,7 @@ function Compkiller:_AddLinkValue(Name , Default , GlobalBlock , LinkValues , re
 		ColorPicker.ZIndex = GlobalBlock.ZIndex + 1
 		ColorPicker.LayoutOrder = -#LinkValues:GetChildren();
 
-		ColorFrame.Name = ""
+		ColorFrame.Name = Compkiller:_RandomString()
 		ColorFrame.Parent = ColorPicker
 		ColorFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 		ColorFrame.BackgroundColor3 = Color3.fromRGB(15, 255, 207)
@@ -1987,7 +2108,7 @@ function Compkiller:_AddLinkValue(Name , Default , GlobalBlock , LinkValues , re
 		local UIStroke = Instance.new("UIStroke")
 		local TextLabel = Instance.new("TextLabel")
 
-		Keybind.Name = ""
+		Keybind.Name = Compkiller:_RandomString()
 		Keybind.Parent = LinkValues
 		Keybind.BackgroundColor3 = Compkiller.Colors.DropColor
 		Keybind.BackgroundTransparency = 0.8
@@ -2089,7 +2210,7 @@ function Compkiller:_AddLinkValue(Name , Default , GlobalBlock , LinkValues , re
 		local UIStroke = Instance.new("UIStroke")
 		local UICorner_2 = Instance.new("UICorner")
 
-		InfoButton.Name = ""
+		InfoButton.Name = Compkiller:_RandomString()
 		InfoButton.Parent = LinkValues
 		InfoButton.BackgroundTransparency = 1.000
 		InfoButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -2103,7 +2224,7 @@ function Compkiller:_AddLinkValue(Name , Default , GlobalBlock , LinkValues , re
 		UICorner.CornerRadius = UDim.new(1, 0)
 		UICorner.Parent = InfoButton
 
-		BlockText.Name = ""
+		BlockText.Name = Compkiller:_RandomString()
 		BlockText.Parent = InfoButton
 		BlockText.AnchorPoint = Vector2.new(0, 0)
 		BlockText.BackgroundColor3 = Compkiller.Colors.BlockColor
@@ -2177,7 +2298,7 @@ function Compkiller:_AddLinkValue(Name , Default , GlobalBlock , LinkValues , re
 		local OptionButton = Instance.new("ImageButton")
 		local UICorner = Instance.new("UICorner")
 
-		OptionButton.Name = ""
+		OptionButton.Name = Compkiller:_RandomString()
 		OptionButton.Parent = LinkValues
 		OptionButton.BackgroundTransparency = 1.000
 		OptionButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -2232,14 +2353,14 @@ function Compkiller:_CreateBlock(Signal)
 		Compkiller:_AddDragBlacklist(GlobalBlock);
 	end;
 
-	GlobalBlock.Name = ""
+	GlobalBlock.Name = Compkiller:_RandomString()
 	GlobalBlock.BackgroundTransparency = 1.000
 	GlobalBlock.BorderColor3 = Color3.fromRGB(0, 0, 0)
 	GlobalBlock.BorderSizePixel = 0
 	GlobalBlock.Size = UDim2.new(1, -1, 0, 30)
 	GlobalBlock.ZIndex = 10
 
-	BlockText.Name = ""
+	BlockText.Name = Compkiller:_RandomString()
 	BlockText.Parent = GlobalBlock
 	BlockText.AnchorPoint = Vector2.new(0, 0.5)
 	BlockText.BackgroundTransparency = 1.000
@@ -2260,7 +2381,7 @@ function Compkiller:_CreateBlock(Signal)
 		Property = 'TextColor3'
 	});
 
-	LinkValues.Name = ""
+	LinkValues.Name = Compkiller:_RandomString()
 	LinkValues.Parent = GlobalBlock
 	LinkValues.AnchorPoint = Vector2.new(1, 0.540000021)
 	LinkValues.BackgroundTransparency = 1.000
@@ -2277,7 +2398,7 @@ function Compkiller:_CreateBlock(Signal)
 	UIListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 	UIListLayout.Padding = UDim.new(0, 8)
 
-	BlockLine.Name = ""
+	BlockLine.Name = Compkiller:_RandomString()
 	BlockLine.Parent = GlobalBlock
 	BlockLine.AnchorPoint = Vector2.new(0.5, 1)
 	BlockLine.BackgroundColor3 = Compkiller.Colors.LineColor
@@ -2528,7 +2649,7 @@ function Compkiller:_AddColorPickerPanel(Button: ImageButton , Callback: (Color:
 	local UIStroke_8 = Instance.new("UIStroke")
 	local TextLabel = Instance.new("TextLabel")
 
-	ColorPickerWindow.Name = ""
+	ColorPickerWindow.Name = Compkiller:_RandomString()
 	ColorPickerWindow.Parent = Window
 	ColorPickerWindow.BackgroundColor3 = Compkiller.Colors.BlockBackground
 	ColorPickerWindow.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -2557,7 +2678,7 @@ function Compkiller:_AddColorPickerPanel(Button: ImageButton , Callback: (Color:
 	UICorner.CornerRadius = UDim.new(0, 6)
 	UICorner.Parent = ColorPickerWindow
 
-	ColorPickBox.Name = ""
+	ColorPickBox.Name = Compkiller:_RandomString()
 	ColorPickBox.Parent = ColorPickerWindow
 	ColorPickBox.BackgroundColor3 = Color3.fromRGB(39, 255, 35)
 	ColorPickBox.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -2567,7 +2688,7 @@ function Compkiller:_AddColorPickerPanel(Button: ImageButton , Callback: (Color:
 	ColorPickBox.ZIndex = BaseZ_Index + 1
 	ColorPickBox.Image = Compkiller:CacheImage("http://www.roblox.com/asset/?id=112554223509763");
 
-	MouseMovement.Name = ""
+	MouseMovement.Name = Compkiller:_RandomString()
 	MouseMovement.Parent = ColorPickBox
 	MouseMovement.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	MouseMovement.BackgroundTransparency = 1.000
@@ -2585,7 +2706,7 @@ function Compkiller:_AddColorPickerPanel(Button: ImageButton , Callback: (Color:
 	UIStroke_2.Color = Color3.fromRGB(29, 29, 29)
 	UIStroke_2.Parent = ColorPickBox
 
-	ColorRedGreenBlue.Name = ""
+	ColorRedGreenBlue.Name = Compkiller:_RandomString()
 	ColorRedGreenBlue.Parent = ColorPickerWindow
 	ColorRedGreenBlue.AnchorPoint = Vector2.new(1, 0)
 	ColorRedGreenBlue.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -2603,7 +2724,7 @@ function Compkiller:_AddColorPickerPanel(Button: ImageButton , Callback: (Color:
 	UICorner_3.CornerRadius = UDim.new(1, 0)
 	UICorner_3.Parent = ColorRedGreenBlue
 
-	ColorRGBSlide.Name = ""
+	ColorRGBSlide.Name = Compkiller:_RandomString()
 	ColorRGBSlide.Parent = ColorRedGreenBlue
 	ColorRGBSlide.AnchorPoint = Vector2.new(0.5, 0)
 	ColorRGBSlide.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -2614,7 +2735,7 @@ function Compkiller:_AddColorPickerPanel(Button: ImageButton , Callback: (Color:
 	ColorRGBSlide.Size = UDim2.new(1, 0, 0, 2)
 	ColorRGBSlide.ZIndex = BaseZ_Index + 7
 
-	Left.Name = ""
+	Left.Name = Compkiller:_RandomString()
 	Left.Parent = ColorRGBSlide
 	Left.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	Left.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -2624,7 +2745,7 @@ function Compkiller:_AddColorPickerPanel(Button: ImageButton , Callback: (Color:
 
 	UIStroke_3.Parent = Left
 
-	Right.Name = ""
+	Right.Name = Compkiller:_RandomString()
 	Right.Parent = ColorRGBSlide
 	Right.AnchorPoint = Vector2.new(1, 0)
 	Right.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -2636,7 +2757,7 @@ function Compkiller:_AddColorPickerPanel(Button: ImageButton , Callback: (Color:
 
 	UIStroke_4.Parent = Right
 
-	ColorOpc.Name = ""
+	ColorOpc.Name = Compkiller:_RandomString()
 	ColorOpc.Parent = ColorPickerWindow
 	ColorOpc.BackgroundColor3 = Color3.fromRGB(102, 255, 0)
 	ColorOpc.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -2648,7 +2769,7 @@ function Compkiller:_AddColorPickerPanel(Button: ImageButton , Callback: (Color:
 	UICorner_4.CornerRadius = UDim.new(1, 0)
 	UICorner_4.Parent = ColorOpc
 
-	ColorOptSlide.Name = ""
+	ColorOptSlide.Name = Compkiller:_RandomString()
 	ColorOptSlide.Parent = ColorOpc
 	ColorOptSlide.AnchorPoint = Vector2.new(0, 0.5)
 	ColorOptSlide.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -2659,7 +2780,7 @@ function Compkiller:_AddColorPickerPanel(Button: ImageButton , Callback: (Color:
 	ColorOptSlide.Size = UDim2.new(0, 2, 1, 0)
 	ColorOptSlide.ZIndex = BaseZ_Index + 7
 
-	Left_2.Name = ""
+	Left_2.Name = Compkiller:_RandomString()
 	Left_2.Parent = ColorOptSlide
 	Left_2.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	Left_2.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -2669,7 +2790,7 @@ function Compkiller:_AddColorPickerPanel(Button: ImageButton , Callback: (Color:
 
 	UIStroke_5.Parent = Left_2
 
-	Right_2.Name = ""
+	Right_2.Name = Compkiller:_RandomString()
 	Right_2.Parent = ColorOptSlide
 	Right_2.AnchorPoint = Vector2.new(0, 1)
 	Right_2.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -2688,7 +2809,7 @@ function Compkiller:_AddColorPickerPanel(Button: ImageButton , Callback: (Color:
 	UIStroke_7.Color = Color3.fromRGB(29, 29, 29)
 	UIStroke_7.Parent = ColorOpc
 
-	TransparentImage.Name = ""
+	TransparentImage.Name = Compkiller:_RandomString()
 	TransparentImage.Parent = ColorOpc
 	TransparentImage.BackgroundTransparency = 1.000
 	TransparentImage.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -2702,7 +2823,7 @@ function Compkiller:_AddColorPickerPanel(Button: ImageButton , Callback: (Color:
 	UICorner_5.CornerRadius = UDim.new(1, 0)
 	UICorner_5.Parent = TransparentImage
 
-	HexFrame.Name = ""
+	HexFrame.Name = Compkiller:_RandomString()
 	HexFrame.Parent = ColorPickerWindow
 	HexFrame.AnchorPoint = Vector2.new(0.5, 1)
 	HexFrame.BackgroundColor3 = Compkiller.Colors.BlockColor
@@ -3126,7 +3247,7 @@ function Compkiller:_DrawKeybinds(Window: ScreenGui)
 	local UIListLayout = Instance.new("UIListLayout")
 	local MovingFrame = Instance.new("Frame")
 
-	Keybinds.Name = ""
+	Keybinds.Name = Compkiller:_RandomString()
 	Keybinds.Parent = Window
 	Keybinds.BackgroundColor3 = Compkiller.Colors.BGDBColor;
 	Keybinds.BackgroundTransparency = 0.025
@@ -3145,7 +3266,7 @@ function Compkiller:_DrawKeybinds(Window: ScreenGui)
 	UICorner.CornerRadius = UDim.new(0, 3)
 	UICorner.Parent = Keybinds
 
-	IconFrame.Name = ""
+	IconFrame.Name = Compkiller:_RandomString()
 	IconFrame.Parent = Keybinds
 	IconFrame.AnchorPoint = Vector2.new(1, 0.5)
 	IconFrame.BackgroundColor3 = Compkiller.Colors.BGDBColor
@@ -3179,7 +3300,7 @@ function Compkiller:_DrawKeybinds(Window: ScreenGui)
 		Property = 'BackgroundColor3'
 	});
 
-	Icon.Name = ""
+	Icon.Name = Compkiller:_RandomString()
 	Icon.Parent = IconFrame
 	Icon.AnchorPoint = Vector2.new(0.5, 0.5)
 	Icon.BackgroundTransparency = 1.000
@@ -3191,7 +3312,7 @@ function Compkiller:_DrawKeybinds(Window: ScreenGui)
 	Icon.ZIndex = 159
 	Icon.Image = Compkiller:CacheImage("rbxassetid://10723416765");
 
-	HeaderFrame.Name = ""
+	HeaderFrame.Name = Compkiller:_RandomString()
 	HeaderFrame.Parent = Keybinds
 	HeaderFrame.AnchorPoint = Vector2.new(0.5, 0)
 	HeaderFrame.BackgroundTransparency = 1.000
@@ -3202,7 +3323,7 @@ function Compkiller:_DrawKeybinds(Window: ScreenGui)
 	HeaderFrame.Size = UDim2.new(1, -10, 1, 0)
 	HeaderFrame.ZIndex = 155
 
-	HeadLabel.Name = ""
+	HeadLabel.Name = Compkiller:_RandomString()
 	HeadLabel.Parent = HeaderFrame
 	HeadLabel.AnchorPoint = Vector2.new(0.5, 0.5)
 	HeadLabel.BackgroundTransparency = 1.000
@@ -3221,7 +3342,7 @@ function Compkiller:_DrawKeybinds(Window: ScreenGui)
 		Property = 'TextColor3'
 	});
 
-	MainFrame.Name = ""
+	MainFrame.Name = Compkiller:_RandomString()
 	MainFrame.Parent = Keybinds
 	MainFrame.AnchorPoint = Vector2.new(1, 0)
 	MainFrame.BackgroundTransparency = 1.000
@@ -3237,7 +3358,7 @@ function Compkiller:_DrawKeybinds(Window: ScreenGui)
 	UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	UIListLayout.Padding = UDim.new(0, 5)
 
-	MovingFrame.Name = ""
+	MovingFrame.Name = Compkiller:_RandomString()
 	MovingFrame.Parent = Keybinds
 	MovingFrame.AnchorPoint = Vector2.new(1, 0.5)
 	MovingFrame.BackgroundTransparency = 1.000
@@ -3333,7 +3454,7 @@ function Compkiller:_DrawKeybinds(Window: ScreenGui)
 		local TypeLabel = Instance.new("TextLabel")
 		local UICorner_2 = Instance.new("UICorner")
 
-		Keyholder.Name = ""
+		Keyholder.Name = Compkiller:_RandomString()
 		Keyholder.BackgroundColor3 = Compkiller.Colors.BGDBColor
 		Keyholder.BackgroundTransparency = 1
 		Keyholder.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -3350,7 +3471,7 @@ function Compkiller:_DrawKeybinds(Window: ScreenGui)
 		UICorner.CornerRadius = UDim.new(0, 3)
 		UICorner.Parent = Keyholder
 
-		Label.Name = ""
+		Label.Name = Compkiller:_RandomString()
 		Label.Parent = Keyholder
 		Label.AnchorPoint = Vector2.new(0.5, 0.5)
 		Label.BackgroundTransparency = 1.000
@@ -3370,7 +3491,7 @@ function Compkiller:_DrawKeybinds(Window: ScreenGui)
 			Property = 'TextColor3'
 		});
 
-		Line.Name = ""
+		Line.Name = Compkiller:_RandomString()
 		Line.Parent = Keyholder
 		Line.AnchorPoint = Vector2.new(1, 0.5)
 		Line.BackgroundColor3 = Compkiller.Colors.BGDBColor
@@ -3385,7 +3506,7 @@ function Compkiller:_DrawKeybinds(Window: ScreenGui)
 			Property = 'BackgroundColor3'
 		});
 
-		TypeLabel.Name = ""
+		TypeLabel.Name = Compkiller:_RandomString()
 		TypeLabel.Parent = Line
 		TypeLabel.AnchorPoint = Vector2.new(0.5, 0.5)
 		TypeLabel.BackgroundTransparency = 1.000
@@ -3498,7 +3619,7 @@ function Compkiller:_KeybindHandler(Parent: Frame , ObjectType: string , Element
 	local ElementObjs = Instance.new("Frame")
 	local UIListLayout = Instance.new("UIListLayout")
 
-	KeybindHandler.Name = ""
+	KeybindHandler.Name = Compkiller:_RandomString()
 	KeybindHandler.Parent = Window
 	KeybindHandler.BackgroundColor3 = Compkiller.Colors.BlockBackground
 	KeybindHandler.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -3525,7 +3646,7 @@ function Compkiller:_KeybindHandler(Parent: Frame , ObjectType: string , Element
 	UICorner.CornerRadius = UDim.new(0, 6)
 	UICorner.Parent = KeybindHandler
 
-	ElementObjs.Name = ""
+	ElementObjs.Name = Compkiller:_RandomString()
 	ElementObjs.Parent = KeybindHandler
 	ElementObjs.AnchorPoint = Vector2.new(0.5, 0.5)
 	ElementObjs.BackgroundTransparency = 1.000
@@ -4125,7 +4246,7 @@ function Compkiller:_LoadOption(Value , TabSignal)
 
 		Compkiller:_AddDragBlacklist(ExtractElement);
 
-		ExtractElement.Name = ""
+		ExtractElement.Name = Compkiller:_RandomString()
 		ExtractElement.Parent = Window
 		ExtractElement.BackgroundColor3 = Compkiller.Colors.BlockBackground
 		ExtractElement.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -4153,7 +4274,7 @@ function Compkiller:_LoadOption(Value , TabSignal)
 		UICorner.CornerRadius = UDim.new(0, 6)
 		UICorner.Parent = ExtractElement
 
-		Elements.Name = ""
+		Elements.Name = Compkiller:_RandomString()
 		Elements.Parent = ExtractElement
 		Elements.AnchorPoint = Vector2.new(0.5, 0.5)
 		Elements.BackgroundTransparency = 1.000
@@ -4201,7 +4322,7 @@ function Compkiller:_LoadDropdown(BaseParent: TextButton , Callback: () -> any)
 	local ToggleDb = Compkiller.__SIGNAL(false);
 	local EventOut = Compkiller.__SIGNAL(0);
 
-	DropdownWindow.Name = ""
+	DropdownWindow.Name = Compkiller:_RandomString()
 	DropdownWindow.Parent = Window
 	DropdownWindow.BackgroundColor3 = Compkiller.Colors.BlockBackground
 	DropdownWindow.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -4323,14 +4444,14 @@ function Compkiller:_LoadDropdown(BaseParent: TextButton , Callback: () -> any)
 		local BlockText = Instance.new("TextLabel")
 		local BlockLine = Instance.new("Frame")
 
-		DropdownItem.Name = ""
+		DropdownItem.Name = Compkiller:_RandomString()
 		DropdownItem.BackgroundTransparency = 1.000
 		DropdownItem.BorderColor3 = Color3.fromRGB(0, 0, 0)
 		DropdownItem.BorderSizePixel = 0
 		DropdownItem.Size = UDim2.new(1, -1, 0, 20)
 		DropdownItem.ZIndex = BaseZ_Index + 6
 
-		BlockText.Name = ""
+		BlockText.Name = Compkiller:_RandomString()
 		BlockText.Parent = DropdownItem
 		BlockText.AnchorPoint = Vector2.new(0, 0.5)
 		BlockText.BackgroundTransparency = 1.000
@@ -4351,7 +4472,7 @@ function Compkiller:_LoadDropdown(BaseParent: TextButton , Callback: () -> any)
 			Property = 'TextColor3'
 		});
 
-		BlockLine.Name = ""
+		BlockLine.Name = Compkiller:_RandomString()
 		BlockLine.Parent = DropdownItem
 		BlockLine.AnchorPoint = Vector2.new(0.5, 1)
 		BlockLine.BackgroundColor3 = Compkiller.Colors.LineColor
@@ -4819,7 +4940,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal ,
 			Compkiller:_AddDragBlacklist(Button);
 		end;
 
-		Button.Name = ""
+		Button.Name = Compkiller:_RandomString()
 		Button.Parent = Parent
 		Button.BackgroundTransparency = 1.000
 		Button.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -4827,7 +4948,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal ,
 		Button.Size = UDim2.new(1, -1, 0, 30)
 		Button.ZIndex = Zindex + 5
 
-		BlockLine.Name = ""
+		BlockLine.Name = Compkiller:_RandomString()
 		BlockLine.Parent = Button
 		BlockLine.AnchorPoint = Vector2.new(0.5, 1)
 		BlockLine.BackgroundColor3 = Compkiller.Colors.LineColor
@@ -4985,7 +5106,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal ,
 
 		Compkiller:_AddDragBlacklist(Slider);
 
-		Slider.Name = ""
+		Slider.Name = Compkiller:_RandomString()
 		Slider.Parent = Parent
 		Slider.BackgroundTransparency = 1.000
 		Slider.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -4993,7 +5114,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal ,
 		Slider.Size = UDim2.new(1, -1, 0, 45)
 		Slider.ZIndex = Zindex + 1
 
-		BlockText.Name = ""
+		BlockText.Name = Compkiller:_RandomString()
 		BlockText.Parent = Slider
 		BlockText.BackgroundTransparency = 1.000
 		BlockText.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -5013,7 +5134,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal ,
 			Property = 'TextColor3'
 		});
 
-		BlockLine.Name = ""
+		BlockLine.Name = Compkiller:_RandomString()
 		BlockLine.Parent = Slider
 		BlockLine.AnchorPoint = Vector2.new(0.5, 1)
 		BlockLine.BackgroundColor3 = Compkiller.Colors.LineColor
@@ -5030,7 +5151,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal ,
 			Property = "BackgroundColor3"
 		});
 
-		SliderBar.Name = ""
+		SliderBar.Name = Compkiller:_RandomString()
 		SliderBar.Parent = Slider
 		SliderBar.AnchorPoint = Vector2.new(0.5, 1)
 		SliderBar.BackgroundColor3 = Compkiller.Colors.DropColor
@@ -5057,7 +5178,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal ,
 		UICorner.CornerRadius = UDim.new(0, 6)
 		UICorner.Parent = SliderBar
 
-		SliderInput.Name = ""
+		SliderInput.Name = Compkiller:_RandomString()
 		SliderInput.Parent = SliderBar
 		SliderInput.AnchorPoint = Vector2.new(0, 0.5)
 		SliderInput.BackgroundColor3 = Compkiller.Colors.Highlight
@@ -5097,7 +5218,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal ,
 		UIScale.Parent = Frame
 		UIScale.Scale = 1.300
 
-		ValueText.Name = ""
+		ValueText.Name = Compkiller:_RandomString()
 		ValueText.Parent = Slider
 		ValueText.BackgroundTransparency = 1.000
 		ValueText.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -5316,7 +5437,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal ,
 			Compkiller:_AddDragBlacklist(Paragraph);
 		end;
 
-		Paragraph.Name = ""
+		Paragraph.Name = Compkiller:_RandomString()
 		Paragraph.Parent = Parent
 		Paragraph.BackgroundTransparency = 1.000
 		Paragraph.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -5325,7 +5446,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal ,
 		Paragraph.ZIndex = Zindex + 2
 		Paragraph.ClipsDescendants = true
 
-		BlockText.Name = ""
+		BlockText.Name = Compkiller:_RandomString()
 		BlockText.Parent = Paragraph
 		BlockText.AnchorPoint = Vector2.new(0, 0.5)
 		BlockText.BackgroundTransparency = 1.000
@@ -5347,7 +5468,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal ,
 			Property = 'TextColor3'
 		});
 
-		BlockLine.Name = ""
+		BlockLine.Name = Compkiller:_RandomString()
 		BlockLine.Parent = Paragraph
 		BlockLine.AnchorPoint = Vector2.new(0.5, 1)
 		BlockLine.BackgroundColor3 = Compkiller.Colors.LineColor
@@ -5364,7 +5485,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal ,
 		});
 
 		DescriptionText.RichText = true
-		DescriptionText.Name = ""
+		DescriptionText.Name = Compkiller:_RandomString()
 		DescriptionText.Parent = Paragraph
 		DescriptionText.BackgroundTransparency = 1.000
 		DescriptionText.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -5471,7 +5592,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal ,
 			Compkiller:_AddDragBlacklist(TextBox);
 		end;
 
-		TextBox.Name = ""
+		TextBox.Name = Compkiller:_RandomString()
 		TextBox.Parent = Parent
 		TextBox.BackgroundTransparency = 1.000
 		TextBox.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -5479,7 +5600,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal ,
 		TextBox.Size = UDim2.new(1, -1, 0, 30)
 		TextBox.ZIndex = Zindex + 1
 
-		BlockText.Name = ""
+		BlockText.Name = Compkiller:_RandomString()
 		BlockText.Parent = TextBox
 		BlockText.AnchorPoint = Vector2.new(0, 0.5)
 		BlockText.BackgroundTransparency = 1.000
@@ -5500,7 +5621,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal ,
 			Property = "TextColor3"
 		})
 
-		LinkValues.Name = ""
+		LinkValues.Name = Compkiller:_RandomString()
 		LinkValues.Parent = TextBox
 		LinkValues.AnchorPoint = Vector2.new(1, 0.540000021)
 		LinkValues.BackgroundColor3 = Compkiller.Colors.DropColor
@@ -5548,7 +5669,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal ,
 			Property = "TextColor3"
 		})
 
-		BlockLine.Name = ""
+		BlockLine.Name = Compkiller:_RandomString()
 		BlockLine.Parent = TextBox
 		BlockLine.AnchorPoint = Vector2.new(0.5, 1)
 		BlockLine.BackgroundColor3 = Compkiller.Colors.LineColor
@@ -5743,7 +5864,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal ,
 		local ValueText = Instance.new("TextLabel")
 		local MainButton = Instance.new("ImageButton")
 
-		Dropdown.Name = ""
+		Dropdown.Name = Compkiller:_RandomString()
 		Dropdown.Parent = Parent
 		Dropdown.BackgroundTransparency = 1.000
 		Dropdown.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -5751,7 +5872,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal ,
 		Dropdown.Size = UDim2.new(1, -1, 0, 55)
 		Dropdown.ZIndex = Zindex + 2
 
-		BlockText.Name = ""
+		BlockText.Name = Compkiller:_RandomString()
 		BlockText.Parent = Dropdown
 		BlockText.BackgroundTransparency = 1.000
 		BlockText.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -5775,7 +5896,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal ,
 			Property = 'TextColor3'
 		});
 
-		BlockLine.Name = ""
+		BlockLine.Name = Compkiller:_RandomString()
 		BlockLine.Parent = Dropdown
 		BlockLine.AnchorPoint = Vector2.new(0.5, 1)
 		BlockLine.BackgroundColor3 = Compkiller.Colors.LineColor
@@ -5791,7 +5912,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal ,
 			Property = "BackgroundColor3"
 		});
 
-		LinkValues.Name = ""
+		LinkValues.Name = Compkiller:_RandomString()
 		LinkValues.Parent = Dropdown
 		LinkValues.AnchorPoint = Vector2.new(1, 0.540000021)
 		LinkValues.BackgroundTransparency = 1.000
@@ -5808,7 +5929,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal ,
 		UIListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 		UIListLayout.Padding = UDim.new(0, 8)
 
-		ValueItems.Name = ""
+		ValueItems.Name = Compkiller:_RandomString()
 		ValueItems.Parent = Dropdown
 		ValueItems.AnchorPoint = Vector2.new(0.5, 1)
 		ValueItems.BackgroundColor3 = Compkiller.Colors.DropColor
@@ -5835,7 +5956,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal ,
 		UICorner.CornerRadius = UDim.new(0, 3)
 		UICorner.Parent = ValueItems
 
-		ValueText.Name = ""
+		ValueText.Name = Compkiller:_RandomString()
 		ValueText.Parent = ValueItems
 		ValueText.AnchorPoint = Vector2.new(0.5, 0.5)
 		ValueText.BackgroundTransparency = 1.000
@@ -5855,7 +5976,7 @@ function Compkiller:_LoadElement(Parent: Frame , EnabledLine: boolean , Signal ,
 			Property = 'TextColor3'
 		});
 
-		MainButton.Name = ""
+		MainButton.Name = Compkiller:_RandomString()
 		MainButton.Parent = ValueItems
 		MainButton.AnchorPoint = Vector2.new(1, 0.5)
 		MainButton.BackgroundTransparency = 1.000
@@ -6244,20 +6365,20 @@ function Compkiller.new(Config : Window)
 		TabButtonScrollingFrame.CanvasSize = UDim2.fromOffset(0,UIListLayout.AbsoluteContentSize.Y)
 	end);
 
-	CompKiller.Name = "";
-	CompKiller.Parent = (gethui and gethui()) or CoreGui;
+	CompKiller.Name = "u?name=compkiller_?"..Compkiller:_RandomString();
+	CompKiller.Parent = CoreGui;
 	CompKiller.ResetOnSpawn = false
 	CompKiller.IgnoreGuiInset = true;
 	CompKiller.ZIndexBehavior = Enum.ZIndexBehavior.Global;
 
-	
+	Compkiller.ProtectGui(CompKiller);
 
 	WindowArgs.Root = CompKiller;
 
 	table.insert(Compkiller.Windows , CompKiller);
 
 	MainFrame.Active = true;
-	MainFrame.Name = ""
+	MainFrame.Name = Compkiller:_RandomString()
 	MainFrame.Parent = CompKiller
 	MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 	MainFrame.BackgroundColor3 = Compkiller.Colors.BGDBColor
@@ -6290,7 +6411,7 @@ function Compkiller.new(Config : Window)
 	local TabFrameBaseTrans = 0.25;
 
 	TabFrame.Active = true
-	TabFrame.Name = ""
+	TabFrame.Name = Compkiller:_RandomString()
 	TabFrame.Parent = MainFrame
 	TabFrame.AnchorPoint = Vector2.new(1, 0)
 	TabFrame.BackgroundColor3 = Compkiller.Colors.BGDBColor
@@ -6309,7 +6430,7 @@ function Compkiller.new(Config : Window)
 
 	UICorner_2.Parent = TabFrame
 
-	LineFrame1.Name = ""
+	LineFrame1.Name = Compkiller:_RandomString()
 	LineFrame1.Parent = TabFrame
 	LineFrame1.AnchorPoint = Vector2.new(1, 0)
 	LineFrame1.BackgroundColor3 = Compkiller.Colors.BGDBColor
@@ -6324,7 +6445,7 @@ function Compkiller.new(Config : Window)
 	LineFrame1.Position = UDim2.new(1, -5, 0, 0)
 	LineFrame1.Size = UDim2.new(0, 20, 1, 0)
 
-	CompLogo.Name = ""
+	CompLogo.Name = Compkiller:_RandomString()
 	CompLogo.Parent = TabFrame
 	CompLogo.BackgroundTransparency = 1.000
 	CompLogo.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -6342,7 +6463,7 @@ function Compkiller.new(Config : Window)
 		});
 	end;
 	
-	WindowLabel.Name = ""
+	WindowLabel.Name = Compkiller:_RandomString()
 	WindowLabel.Parent = TabFrame
 	WindowLabel.BackgroundTransparency = 1.000
 	WindowLabel.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -6360,7 +6481,7 @@ function Compkiller.new(Config : Window)
 		Property = 'TextColor3'
 	});
 
-	TabButtons.Name = ""
+	TabButtons.Name = Compkiller:_RandomString()
 	TabButtons.Parent = TabFrame
 	TabButtons.BackgroundTransparency = 1.000
 	TabButtons.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -6368,7 +6489,7 @@ function Compkiller.new(Config : Window)
 	TabButtons.Position = UDim2.new(0, 0, 0, 60)
 	TabButtons.Size = UDim2.new(1, -25, 1, -125)
 
-	SelectionFrame.Name = ""
+	SelectionFrame.Name = Compkiller:_RandomString()
 	SelectionFrame.Parent = TabButtons
 	SelectionFrame.AnchorPoint = Vector2.new(1, 0)
 	SelectionFrame.BackgroundColor3 = Compkiller.Colors.Highlight
@@ -6385,7 +6506,7 @@ function Compkiller.new(Config : Window)
 	UICorner_3.CornerRadius = UDim.new(1, 0)
 	UICorner_3.Parent = SelectionFrame
 
-	TabButtonScrollingFrame.Name = ""
+	TabButtonScrollingFrame.Name = Compkiller:_RandomString()
 	TabButtonScrollingFrame.Parent = TabButtons
 	TabButtonScrollingFrame.Active = true
 	TabButtonScrollingFrame.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -6403,7 +6524,7 @@ function Compkiller.new(Config : Window)
 	UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	UIListLayout.Padding = UDim.new(0, 4)
 
-	Userinfo.Name = ""
+	Userinfo.Name = Compkiller:_RandomString()
 	Userinfo.Parent = TabFrame
 	Userinfo.AnchorPoint = Vector2.new(0, 1)
 	Userinfo.BackgroundTransparency = 1.000
@@ -6416,7 +6537,7 @@ function Compkiller.new(Config : Window)
 		local Highlight = Instance.new("Frame")
 		local UICorner = Instance.new("UICorner")
 
-		Highlight.Name = ""
+		Highlight.Name = Compkiller:_RandomString()
 		Highlight.Parent = Userinfo
 		Highlight.AnchorPoint = Vector2.new(0.5, 0)
 		Highlight.BackgroundColor3 = Color3.fromRGB(161, 161, 161)
@@ -6448,7 +6569,7 @@ function Compkiller.new(Config : Window)
 		end);
 	end;
 
-	UserProfile.Name = ""
+	UserProfile.Name = Compkiller:_RandomString()
 	UserProfile.Parent = Userinfo
 	UserProfile.BackgroundTransparency = 1.000
 	UserProfile.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -6461,7 +6582,7 @@ function Compkiller.new(Config : Window)
 	UICorner_4.CornerRadius = UDim.new(1, 0)
 	UICorner_4.Parent = UserProfile
 
-	UserText.Name = ""
+	UserText.Name = Compkiller:_RandomString()
 	UserText.Parent = Userinfo
 	UserText.BackgroundTransparency = 1.000
 	UserText.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -6480,7 +6601,7 @@ function Compkiller.new(Config : Window)
 		Property = 'TextColor3'
 	});
 
-	ExpireText.Name = ""
+	ExpireText.Name = Compkiller:_RandomString()
 	ExpireText.Parent = Userinfo
 	ExpireText.BackgroundTransparency = 1.000
 	ExpireText.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -6500,7 +6621,7 @@ function Compkiller.new(Config : Window)
 		Property = 'TextColor3'
 	});
 
-	TabMainFrame.Name = ""
+	TabMainFrame.Name = Compkiller:_RandomString()
 	TabMainFrame.Parent = MainFrame
 	TabMainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 	TabMainFrame.BackgroundTransparency = 1.000
@@ -6664,7 +6785,7 @@ function Compkiller.new(Config : Window)
 		local HeaderText = Instance.new("TextLabel")
 		local ImageLabel = Instance.new("ImageLabel")
 
-		UserSettings.Name = ""
+		UserSettings.Name = Compkiller:_RandomString()
 		UserSettings.Parent = CompKiller;
 		UserSettings.BackgroundColor3 = Compkiller.Colors.BGDBColor;
 		UserSettings.BackgroundTransparency = 1
@@ -6683,7 +6804,7 @@ function Compkiller.new(Config : Window)
 		UICorner.CornerRadius = UDim.new(0, 4)
 		UICorner.Parent = UserSettings
 
-		SectionFrame.Name = ""
+		SectionFrame.Name = Compkiller:_RandomString()
 		SectionFrame.Parent = UserSettings
 		SectionFrame.BackgroundColor3 = Compkiller.Colors.BGDBColor;
 		SectionFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -6705,7 +6826,7 @@ function Compkiller.new(Config : Window)
 		UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 		UIListLayout.Padding = UDim.new(0, 5)
 
-		Header.Name = ""
+		Header.Name = Compkiller:_RandomString()
 		Header.Parent = UserSettings
 		Header.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 		Header.BackgroundTransparency = 1.000
@@ -6714,7 +6835,7 @@ function Compkiller.new(Config : Window)
 		Header.Size = UDim2.new(1, 0, 0, 45)
 		Header.ZIndex = 66
 
-		HeaderText.Name = ""
+		HeaderText.Name = Compkiller:_RandomString()
 		HeaderText.Parent = Header
 		HeaderText.AnchorPoint = Vector2.new(0.5, 0.5)
 		HeaderText.BackgroundTransparency = 1.000
@@ -6830,7 +6951,7 @@ function Compkiller.new(Config : Window)
 		local Frame = Instance.new("Frame")
 		local UIGradient = Instance.new("UIGradient")
 
-		Category.Name = ""
+		Category.Name = Compkiller:_RandomString()
 		Category.Parent = TabButtonScrollingFrame
 		Category.BackgroundTransparency = 1.000
 		Category.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -6842,7 +6963,7 @@ function Compkiller.new(Config : Window)
 			Compkiller:_AddDragBlacklist(Category);
 		end;
 
-		CategoryText.Name = ""
+		CategoryText.Name = Compkiller:_RandomString()
 		CategoryText.Parent = Category
 		CategoryText.BackgroundTransparency = 1.000
 		CategoryText.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -6923,7 +7044,7 @@ function Compkiller.new(Config : Window)
 		local Highlight = Instance.new("Frame")
 		local UICorner = Instance.new("UICorner")
 
-		TabButton.Name = ""
+		TabButton.Name = Compkiller:_RandomString()
 		TabButton.Parent = TabButtonScrollingFrame
 		TabButton.BackgroundTransparency = 1.000
 		TabButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -6936,7 +7057,7 @@ function Compkiller.new(Config : Window)
 			Compkiller:_AddDragBlacklist(TabButton);
 		end;
 
-		Icon.Name = ""
+		Icon.Name = Compkiller:_RandomString()
 		Icon.Parent = TabButton
 		Icon.AnchorPoint = Vector2.new(0, 0.5)
 		Icon.BackgroundColor3 = Compkiller.Colors.Highlight
@@ -6954,7 +7075,7 @@ function Compkiller.new(Config : Window)
 			Property = "ImageColor3"
 		});
 
-		TabNameLabel.Name = ""
+		TabNameLabel.Name = Compkiller:_RandomString()
 		TabNameLabel.Parent = TabButton
 		TabNameLabel.AnchorPoint = Vector2.new(0, 0.5)
 		TabNameLabel.BackgroundTransparency = 1.000
@@ -6974,7 +7095,7 @@ function Compkiller.new(Config : Window)
 			Property = 'TextColor3'
 		});
 
-		Highlight.Name = ""
+		Highlight.Name = Compkiller:_RandomString()
 		Highlight.Parent = TabButton
 		Highlight.AnchorPoint = Vector2.new(0.5, 0.5)
 		Highlight.BackgroundColor3 = Color3.fromRGB(161, 161, 161)
@@ -6995,7 +7116,7 @@ function Compkiller.new(Config : Window)
 		local Top = Instance.new("Frame")
 		local UIListLayout = Instance.new("UIListLayout")
 
-		ContainerTab.Name = ""
+		ContainerTab.Name = Compkiller:_RandomString()
 		ContainerTab.Parent = TabMainFrame
 		ContainerTab.AnchorPoint = Vector2.new(0.5, 0.5)
 		ContainerTab.BackgroundTransparency = 1.000
@@ -7005,7 +7126,7 @@ function Compkiller.new(Config : Window)
 		ContainerTab.Size = UDim2.new(1, -15, 1, -15)
 		ContainerTab.ZIndex = 6
 
-		MainFrame.Name = ""
+		MainFrame.Name = Compkiller:_RandomString()
 		MainFrame.Parent = ContainerTab
 		MainFrame.AnchorPoint = Vector2.new(0.5, 1)
 		MainFrame.BackgroundTransparency = 1.000
@@ -7016,7 +7137,7 @@ function Compkiller.new(Config : Window)
 		MainFrame.ZIndex = 6
 		MainFrame.ClipsDescendants = true
 
-		Top.Name = ""
+		Top.Name = Compkiller:_RandomString()
 		Top.Parent = ContainerTab
 		Top.BackgroundTransparency = 1.000
 		Top.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -7225,7 +7346,7 @@ function Compkiller.new(Config : Window)
 				Property = "Color"
 			});
 
-			Highlight.Name = ""
+			Highlight.Name = Compkiller:_RandomString()
 			Highlight.Parent = Frame
 			Highlight.AnchorPoint = Vector2.new(1, 0.5)
 			Highlight.BackgroundColor3 = Compkiller.Colors.Highlight
@@ -7421,7 +7542,7 @@ function Compkiller.new(Config : Window)
 			Compkiller:_AddDragBlacklist(TabButton);
 		end;
 
-		TabButton.Name = ""
+		TabButton.Name = Compkiller:_RandomString()
 		TabButton.Parent = TabButtonScrollingFrame
 		TabButton.BackgroundTransparency = 1.000
 		TabButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -7430,7 +7551,7 @@ function Compkiller.new(Config : Window)
 		TabButton.Size = UDim2.new(1, -10, 0, 32)
 		TabButton.ZIndex = 3
 
-		Icon.Name = ""
+		Icon.Name = Compkiller:_RandomString()
 		Icon.Parent = TabButton
 		Icon.AnchorPoint = Vector2.new(0, 0.5)
 		Icon.BackgroundColor3 = Compkiller.Colors.Highlight
@@ -7448,7 +7569,7 @@ function Compkiller.new(Config : Window)
 			Property = "ImageColor3"
 		});
 
-		TabNameLabel.Name = ""
+		TabNameLabel.Name = Compkiller:_RandomString()
 		TabNameLabel.Parent = TabButton
 		TabNameLabel.AnchorPoint = Vector2.new(0, 0.5)
 		TabNameLabel.BackgroundTransparency = 1.000
@@ -7468,7 +7589,7 @@ function Compkiller.new(Config : Window)
 			Property = 'TextColor3'
 		});
 
-		Highlight.Name = ""
+		Highlight.Name = Compkiller:_RandomString()
 		Highlight.Parent = TabButton
 		Highlight.AnchorPoint = Vector2.new(0.5, 0.5)
 		Highlight.BackgroundColor3 = Color3.fromRGB(161, 161, 161)
@@ -7509,7 +7630,7 @@ function Compkiller.new(Config : Window)
 		local UICorner_4 = Instance.new("UICorner")
 		local TextLabel = Instance.new("TextLabel")
 
-		TabConfig.Name = ""
+		TabConfig.Name = Compkiller:_RandomString()
 		TabConfig.Parent = TabMainFrame
 		TabConfig.AnchorPoint = Vector2.new(0.5, 0.5)
 		TabConfig.BackgroundTransparency = 1.000
@@ -7519,7 +7640,7 @@ function Compkiller.new(Config : Window)
 		TabConfig.Size = UDim2.new(1, 0, 1, 0)
 		TabConfig.ZIndex = 6
 
-		ConfigList.Name = ""
+		ConfigList.Name = Compkiller:_RandomString()
 		ConfigList.Parent = TabConfig
 		ConfigList.AnchorPoint = Vector2.new(0.5, 0)
 		ConfigList.BackgroundColor3 = Compkiller.Colors.BlockColor
@@ -7546,7 +7667,7 @@ function Compkiller.new(Config : Window)
 			Property = "Color"
 		});
 
-		Header.Name = ""
+		Header.Name = Compkiller:_RandomString()
 		Header.Parent = ConfigList
 		Header.BackgroundTransparency = 1.000
 		Header.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -7554,7 +7675,7 @@ function Compkiller.new(Config : Window)
 		Header.Size = UDim2.new(1, 0, 0, 35)
 		Header.ZIndex = 9
 
-		SectionText.Name = ""
+		SectionText.Name = Compkiller:_RandomString()
 		SectionText.Parent = Header
 		SectionText.AnchorPoint = Vector2.new(0, 0.5)
 		SectionText.BackgroundTransparency = 1.000
@@ -7575,7 +7696,7 @@ function Compkiller.new(Config : Window)
 			Property = 'TextColor3'
 		});
 
-		SectionClose.Name = ""
+		SectionClose.Name = Compkiller:_RandomString()
 		SectionClose.Parent = Header
 		SectionClose.AnchorPoint = Vector2.new(1, 0.5)
 		SectionClose.BackgroundTransparency = 1.000
@@ -7604,13 +7725,13 @@ function Compkiller.new(Config : Window)
 		UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 		UIListLayout.Padding = UDim.new(0, 7)
 
-		Space.Name = ""
+		Space.Name = Compkiller:_RandomString()
 		Space.Parent = ScrollingFrame
 		Space.BackgroundTransparency = 1.000
 		Space.BorderColor3 = Color3.fromRGB(0, 0, 0)
 		Space.BorderSizePixel = 0
 
-		AddConfig.Name = ""
+		AddConfig.Name = Compkiller:_RandomString()
 		AddConfig.Parent = TabConfig
 		AddConfig.AnchorPoint = Vector2.new(0.5, 1)
 		AddConfig.BackgroundColor3 = Compkiller.Colors.BlockColor
@@ -7637,7 +7758,7 @@ function Compkiller.new(Config : Window)
 			Property = "Color"
 		});
 
-		Header_2.Name = ""
+		Header_2.Name = Compkiller:_RandomString()
 		Header_2.Parent = AddConfig
 		Header_2.BackgroundTransparency = 1.000
 		Header_2.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -7645,7 +7766,7 @@ function Compkiller.new(Config : Window)
 		Header_2.Size = UDim2.new(1, 0, 0, 35)
 		Header_2.ZIndex = 9
 
-		SectionText_2.Name = ""
+		SectionText_2.Name = Compkiller:_RandomString()
 		SectionText_2.Parent = Header_2
 		SectionText_2.AnchorPoint = Vector2.new(0, 0.5)
 		SectionText_2.BackgroundTransparency = 1.000
@@ -7666,7 +7787,7 @@ function Compkiller.new(Config : Window)
 			Property = 'TextColor3'
 		});
 
-		SectionClose_2.Name = ""
+		SectionClose_2.Name = Compkiller:_RandomString()
 		SectionClose_2.Parent = Header_2
 		SectionClose_2.AnchorPoint = Vector2.new(1, 0.5)
 		SectionClose_2.BackgroundTransparency = 1.000
@@ -7726,7 +7847,7 @@ function Compkiller.new(Config : Window)
 			Property = 'TextColor3'
 		});
 
-		Button.Name = ""
+		Button.Name = Compkiller:_RandomString()
 		Button.Parent = AddConfig
 		Button.AnchorPoint = Vector2.new(0.5, 1)
 		Button.BackgroundColor3 = Compkiller.Colors.SwitchColor
@@ -7737,7 +7858,7 @@ function Compkiller.new(Config : Window)
 		Button.Size = UDim2.new(1, -7, 0, 25)
 		Button.ZIndex = 10
 
-		BlockLine.Name = ""
+		BlockLine.Name = Compkiller:_RandomString()
 		BlockLine.Parent = AddConfig
 		BlockLine.AnchorPoint = Vector2.new(0.5, 1)
 		BlockLine.BackgroundColor3 = Compkiller.Colors.LineColor
@@ -8095,7 +8216,7 @@ function Compkiller.new(Config : Window)
 			local UICorner = Instance.new("UICorner")
 			local UIGradient = Instance.new("UIGradient")
 
-			DelButton.Name = ""
+			DelButton.Name = Compkiller:_RandomString()
 			DelButton.Parent = LinkValues
 			DelButton.BackgroundTransparency = 1.000
 			DelButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -8110,7 +8231,7 @@ function Compkiller.new(Config : Window)
 
 			UICorner.CornerRadius = UDim.new(1, 0)
 			UICorner.Parent = DelButton
-			ConfigBlock.Name = ""
+			ConfigBlock.Name = Compkiller:_RandomString()
 			ConfigBlock.Parent = ScrollingFrame
 			ConfigBlock.BackgroundColor3 = Color3.fromRGB(33, 34, 40)
 			ConfigBlock.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -8123,7 +8244,7 @@ function Compkiller.new(Config : Window)
 				Compkiller:_AddDragBlacklist(ConfigBlock);
 			end;
 
-			ConfigText.Name = ""
+			ConfigText.Name = Compkiller:_RandomString()
 			ConfigText.Parent = ConfigBlock
 			ConfigText.AnchorPoint = Vector2.new(0, 0.5)
 			ConfigText.BackgroundTransparency = 1.000
@@ -8148,7 +8269,7 @@ function Compkiller.new(Config : Window)
 			UIGradient.Transparency = NumberSequence.new{NumberSequenceKeypoint.new(0.00, 0.00), NumberSequenceKeypoint.new(0.29, 0.00), NumberSequenceKeypoint.new(0.33, 1.00), NumberSequenceKeypoint.new(1.00, 1.00)}
 			UIGradient.Parent = ConfigText
 
-			LinkValues.Name = ""
+			LinkValues.Name = Compkiller:_RandomString()
 			LinkValues.Parent = ConfigBlock
 			LinkValues.AnchorPoint = Vector2.new(1, 0.540000021)
 			LinkValues.BackgroundTransparency = 1.000
@@ -8165,7 +8286,7 @@ function Compkiller.new(Config : Window)
 			UIListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 			UIListLayout.Padding = UDim.new(0, -10)
 
-			SaveButton.Name = ""
+			SaveButton.Name = Compkiller:_RandomString()
 			SaveButton.Parent = LinkValues
 			SaveButton.BackgroundTransparency = 1.000
 			SaveButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -8221,7 +8342,7 @@ function Compkiller.new(Config : Window)
 				Property = 'TextColor3'
 			});
 
-			Icon.Name = ""
+			Icon.Name = Compkiller:_RandomString()
 			Icon.Parent = Frame
 			Icon.AnchorPoint = Vector2.new(0, 0.5)
 			Icon.BackgroundTransparency = 1.000
@@ -8234,7 +8355,7 @@ function Compkiller.new(Config : Window)
 			Icon.Image = Compkiller:CacheImage("rbxassetid://10734941499")
 			Icon.ImageTransparency = 1;
 
-			LoadButton.Name = ""
+			LoadButton.Name = Compkiller:_RandomString()
 			LoadButton.Parent = LinkValues
 			LoadButton.BackgroundTransparency = 1.000
 			LoadButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -8290,7 +8411,7 @@ function Compkiller.new(Config : Window)
 				Property = 'TextColor3'
 			});
 
-			Icon_2.Name = ""
+			Icon_2.Name = Compkiller:_RandomString()
 			Icon_2.Parent = Frame_2
 			Icon_2.AnchorPoint = Vector2.new(0, 0.5)
 			Icon_2.BackgroundTransparency = 1.000
@@ -8315,7 +8436,7 @@ function Compkiller.new(Config : Window)
 			UICorner_3.CornerRadius = UDim.new(0, 6)
 			UICorner_3.Parent = ConfigBlock
 
-			AuthorText.Name = ""
+			AuthorText.Name = Compkiller:_RandomString()
 			AuthorText.Parent = ConfigBlock
 			AuthorText.AnchorPoint = Vector2.new(0, 0.5)
 			AuthorText.BackgroundTransparency = 1.000
@@ -8605,7 +8726,7 @@ function Compkiller.new(Config : Window)
 			local Right = Instance.new("ScrollingFrame")
 			local UIListLayout_2 = Instance.new("UIListLayout")
 
-			TabContent.Name = ""
+			TabContent.Name = Compkiller:_RandomString()
 			TabContent.Parent = Internal.Parent;
 			TabContent.AnchorPoint = Vector2.new(0.5, 0.5)
 			TabContent.BackgroundTransparency = 1.000
@@ -8615,7 +8736,7 @@ function Compkiller.new(Config : Window)
 			TabContent.Size = UDim2.new(1, -5,1, -5)
 			TabContent.ZIndex = 6
 
-			Left.Name = ""
+			Left.Name = Compkiller:_RandomString()
 			Left.Parent = TabContent
 			Left.Active = true
 			Left.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -8642,7 +8763,7 @@ function Compkiller.new(Config : Window)
 			UIListLayout.VerticalFlex = Enum.UIFlexAlignment.None
 			UIListLayout.Padding = UDim.new(0, BASE_PADDING)
 
-			Right.Name = ""
+			Right.Name = Compkiller:_RandomString()
 			Right.Parent = TabContent
 			Right.Active = true
 			Right.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -8736,7 +8857,7 @@ function Compkiller.new(Config : Window)
 			local Highlight = Instance.new("Frame")
 			local UICorner = Instance.new("UICorner")
 
-			TabButton.Name = ""
+			TabButton.Name = Compkiller:_RandomString()
 			TabButton.Parent = TabButtonScrollingFrame
 			TabButton.BackgroundTransparency = 1.000
 			TabButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -8745,7 +8866,7 @@ function Compkiller.new(Config : Window)
 			TabButton.Size = UDim2.new(1, -10, 0, 32)
 			TabButton.ZIndex = 3
 
-			Icon.Name = ""
+			Icon.Name = Compkiller:_RandomString()
 			Icon.Parent = TabButton
 			Icon.AnchorPoint = Vector2.new(0, 0.5)
 			Icon.BackgroundColor3 = Compkiller.Colors.Highlight
@@ -8763,7 +8884,7 @@ function Compkiller.new(Config : Window)
 				Property = "ImageColor3"
 			});
 
-			TabNameLabel.Name = ""
+			TabNameLabel.Name = Compkiller:_RandomString()
 			TabNameLabel.Parent = TabButton
 			TabNameLabel.AnchorPoint = Vector2.new(0, 0.5)
 			TabNameLabel.BackgroundTransparency = 1.000
@@ -8783,7 +8904,7 @@ function Compkiller.new(Config : Window)
 				Property = 'TextColor3'
 			});
 
-			Highlight.Name = ""
+			Highlight.Name = Compkiller:_RandomString()
 			Highlight.Parent = TabButton
 			Highlight.AnchorPoint = Vector2.new(0.5, 0.5)
 			Highlight.BackgroundColor3 = Color3.fromRGB(161, 161, 161)
@@ -8803,7 +8924,7 @@ function Compkiller.new(Config : Window)
 			local Right = Instance.new("ScrollingFrame")
 			local UIListLayout_2 = Instance.new("UIListLayout")
 
-			TabContent.Name = ""
+			TabContent.Name = Compkiller:_RandomString()
 			TabContent.Parent = TabMainFrame;
 			TabContent.AnchorPoint = Vector2.new(0.5, 0.5)
 			TabContent.BackgroundTransparency = 1.000
@@ -8813,7 +8934,7 @@ function Compkiller.new(Config : Window)
 			TabContent.Size = UDim2.new(1, -15, 1, -15)
 			TabContent.ZIndex = 6
 
-			Left.Name = ""
+			Left.Name = Compkiller:_RandomString()
 			Left.Parent = TabContent
 			Left.Active = true
 			Left.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -8841,7 +8962,7 @@ function Compkiller.new(Config : Window)
 			UIListLayout.VerticalFlex = Enum.UIFlexAlignment.None
 			UIListLayout.Padding = UDim.new(0, BASE_PADDING)
 
-			Right.Name = ""
+			Right.Name = Compkiller:_RandomString()
 			Right.Parent = TabContent
 			Right.Active = true
 			Right.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -9129,7 +9250,7 @@ function Compkiller.new(Config : Window)
 			local SectionText = Instance.new("TextLabel")
 			local SectionClose = Instance.new("ImageLabel")
 
-			Section.Name = ""
+			Section.Name = Compkiller:_RandomString()
 			Section.Parent = Parent;
 
 			if TabConfig.Type == "Single" then
@@ -9170,7 +9291,7 @@ function Compkiller.new(Config : Window)
 			UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 			UIListLayout.Padding = UDim.new(0, 5)
 
-			Header.Name = ""
+			Header.Name = Compkiller:_RandomString()
 			Header.Parent = Section
 			Header.BackgroundTransparency = 1.000
 			Header.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -9179,7 +9300,7 @@ function Compkiller.new(Config : Window)
 			Header.Size = UDim2.new(1, 0, 0, 35)
 			Header.ZIndex = 9
 
-			SectionText.Name = ""
+			SectionText.Name = Compkiller:_RandomString()
 			SectionText.Parent = Header
 			SectionText.AnchorPoint = Vector2.new(0, 0.5)
 			SectionText.BackgroundTransparency = 1.000
@@ -9200,7 +9321,7 @@ function Compkiller.new(Config : Window)
 				Property = 'TextColor3'
 			});
 
-			SectionClose.Name = ""
+			SectionClose.Name = Compkiller:_RandomString()
 			SectionClose.Parent = Header
 			SectionClose.AnchorPoint = Vector2.new(1, 0.5)
 			SectionClose.BackgroundTransparency = 1.000
@@ -9405,7 +9526,7 @@ function Compkiller.new(Config : Window)
 		local UICorner = Instance.new("UICorner")
 		local ImageLabel = Instance.new("ImageLabel")
 
-		CloseWindow.Name = ""
+		CloseWindow.Name = Compkiller:_RandomString()
 		CloseWindow.Parent = CompKiller
 		CloseWindow.AnchorPoint = Vector2.new(1, 0)
 		CloseWindow.BackgroundColor3 = Compkiller.Colors.BGDBColor
@@ -9479,7 +9600,7 @@ function Compkiller.new(Config : Window)
 			local WaternarkList = Instance.new("Frame")
 			local UIListLayout = Instance.new("UIListLayout")
 
-			Watermark.Name = ""
+			Watermark.Name = Compkiller:_RandomString()
 			Watermark.Parent = CompKiller
 			Watermark.AnchorPoint = Vector2.new(1, 0)
 			Watermark.BackgroundColor3 = Compkiller.Colors.BGDBColor
@@ -9501,7 +9622,7 @@ function Compkiller.new(Config : Window)
 			UICorner.CornerRadius = UDim.new(0, 3)
 			UICorner.Parent = Watermark
 
-			Logo.Name = ""
+			Logo.Name = Compkiller:_RandomString()
 			Logo.Parent = Watermark
 			Logo.AnchorPoint = Vector2.new(1, 0.5)
 			Logo.BackgroundColor3 = Compkiller.Colors.BGDBColor
@@ -9536,7 +9657,7 @@ function Compkiller.new(Config : Window)
 				Property = "BackgroundColor3"
 			});
 
-			CompLogo.Name = ""
+			CompLogo.Name = Compkiller:_RandomString()
 			CompLogo.Parent = Logo
 			CompLogo.AnchorPoint = Vector2.new(0.5, 0.5)
 			CompLogo.BackgroundTransparency = 1.000
@@ -9557,7 +9678,7 @@ function Compkiller.new(Config : Window)
 				});
 			end;
 
-			WaternarkList.Name = ""
+			WaternarkList.Name = Compkiller:_RandomString()
 			WaternarkList.Parent = Watermark
 			WaternarkList.AnchorPoint = Vector2.new(0.5, 0)
 			WaternarkList.BackgroundTransparency = 1.000
@@ -9576,7 +9697,7 @@ function Compkiller.new(Config : Window)
 
 			local BackFrame = Instance.new("Frame")
 
-			BackFrame.Name = ""
+			BackFrame.Name = Compkiller:_RandomString()
 			BackFrame.Parent = Watermark
 			BackFrame.AnchorPoint = Vector2.new(1, 0.5)
 			BackFrame.BackgroundTransparency = 1.000
@@ -9604,7 +9725,7 @@ function Compkiller.new(Config : Window)
 				local Icon = Instance.new("ImageLabel")
 				local TextLabel = Instance.new("TextLabel")
 
-				Icon.Name = ""
+				Icon.Name = Compkiller:_RandomString()
 				Icon.Parent = WaternarkList
 				Icon.BackgroundTransparency = 1.000
 				Icon.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -9779,7 +9900,7 @@ function Compkiller.new(Config : Window)
 
 		local BlurElement = Instance.new("Frame")
 
-		BlurElement.Name = ""
+		BlurElement.Name = Compkiller:_RandomString()
 		BlurElement.Parent = MainFrame
 		BlurElement.AnchorPoint = Vector2.new(1, 0.5)
 		BlurElement.BackgroundTransparency = 1.000
@@ -9794,7 +9915,7 @@ function Compkiller.new(Config : Window)
 
 		local MovementFrame = Instance.new("Frame")
 
-		MovementFrame.Name = ""
+		MovementFrame.Name = Compkiller:_RandomString()
 		MovementFrame.Parent = MainFrame
 		MovementFrame.AnchorPoint = Vector2.new(1, 0.5)
 		MovementFrame.BackgroundTransparency = 1.000
@@ -9984,7 +10105,7 @@ function Compkiller:ConfigManager(ConfigManager: ConfigManager) : ConfigFunction
 
 	function Args:WriteConfig(Config: WriteConfig)
 		Config = Compkiller.__CONFIG(Config , {
-			Name = "",
+			Name = Compkiller:_RandomString(),
 			Author = LocalPlayer.Name,
 		});
 
@@ -10156,8 +10277,8 @@ end;
 function Compkiller:Loader(IconId,Duration)
 	local CompKiller = Instance.new("ScreenGui")
 
-	CompKiller.Name = ""
-	CompKiller.Parent = (gethui and gethui()) or CoreGui
+	CompKiller.Name = Compkiller:_RandomString()
+	CompKiller.Parent = CoreGui
 	CompKiller.Enabled = true
 	CompKiller.ResetOnSpawn = false
 	CompKiller.IgnoreGuiInset = true
@@ -10167,7 +10288,7 @@ function Compkiller:Loader(IconId,Duration)
 	local Icon = Instance.new("ImageLabel")
 	local Vignette = Instance.new("ImageLabel")
 
-	Loader.Name = ""
+	Loader.Name = Compkiller:_RandomString()
 	Loader.Parent = CompKiller
 	Loader.AnchorPoint = Vector2.new(0.5, 0.5)
 	Loader.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
@@ -10177,7 +10298,7 @@ function Compkiller:Loader(IconId,Duration)
 	Loader.Position = UDim2.new(0.5, 0, 0.5, 0)
 	Loader.Size = UDim2.new(1, 0, 1, 0)
 
-	Icon.Name = ""
+	Icon.Name = Compkiller:_RandomString()
 	Icon.Parent = Loader
 	Icon.AnchorPoint = Vector2.new(0.5, 0.5)
 	Icon.BackgroundTransparency = 1.000
@@ -10189,7 +10310,7 @@ function Compkiller:Loader(IconId,Duration)
 	Icon.Image = IconId or Compkiller.Logo;
 	Icon.ImageTransparency = 1
 
-	Vignette.Name = ""
+	Vignette.Name = Compkiller:_RandomString()
 	Vignette.Parent = Loader
 	Vignette.BackgroundTransparency = 1.000
 	Vignette.BorderColor3 = Color3.fromRGB(27, 42, 53)
@@ -10266,12 +10387,12 @@ function Compkiller.newNotify()
 	local NotifyContainer = Instance.new("Frame")
 	local UIListLayout = Instance.new("UIListLayout")
 
-	Notification.Name = ""
-	Notification.Parent = (gethui and gethui()) or CoreGui;
+	Notification.Name = Compkiller:_RandomString()
+	Notification.Parent = CoreGui;
 	Notification.ResetOnSpawn = false
 	Notification.ZIndexBehavior = Enum.ZIndexBehavior.Global
 
-	NotifyContainer.Name = ""
+	NotifyContainer.Name = Compkiller:_RandomString()
 	NotifyContainer.Parent = Notification
 	NotifyContainer.AnchorPoint = Vector2.new(1, 0)
 	NotifyContainer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -10310,7 +10431,7 @@ function Compkiller.newNotify()
 			local TimeLeft = Instance.new("Frame")
 			local UICorner_3 = Instance.new("UICorner")
 
-			BlockFrame.Name = ""
+			BlockFrame.Name = Compkiller:_RandomString()
 			BlockFrame.Parent = NotifyContainer
 			BlockFrame.AnchorPoint = Vector2.new(1, 0)
 			BlockFrame.BackgroundColor3 = Compkiller.Colors.BGDBColor
@@ -10322,7 +10443,7 @@ function Compkiller.newNotify()
 			BlockFrame.LayoutOrder = LayoutREF;
 
 
-			NotifyFrame.Name = ""
+			NotifyFrame.Name = Compkiller:_RandomString()
 			NotifyFrame.Parent = BlockFrame
 			NotifyFrame.BackgroundColor3 = Compkiller.Colors.BGDBColor
 			NotifyFrame.BackgroundTransparency = 0.100
@@ -10337,7 +10458,7 @@ function Compkiller.newNotify()
 			UICorner.CornerRadius = UDim.new(0, 4)
 			UICorner.Parent = NotifyFrame
 
-			CompLogo.Name = ""
+			CompLogo.Name = Compkiller:_RandomString()
 			CompLogo.Parent = NotifyFrame
 			CompLogo.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 			CompLogo.BackgroundTransparency = 1.000
@@ -10357,7 +10478,7 @@ function Compkiller.newNotify()
 				CompLogo.ImageColor3 = Compkiller.Colors.Highlight;
 			end;
 			
-			Header.Name = ""
+			Header.Name = Compkiller:_RandomString()
 			Header.Parent = NotifyFrame
 			Header.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 			Header.BackgroundTransparency = 1.000
@@ -10372,7 +10493,7 @@ function Compkiller.newNotify()
 			Header.TextSize = 14.000
 			Header.TextXAlignment = Enum.TextXAlignment.Left
 
-			Body.Name = ""
+			Body.Name = Compkiller:_RandomString()
 			Body.Parent = NotifyFrame
 			Body.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 			Body.BackgroundTransparency = 1.000
@@ -10389,7 +10510,7 @@ function Compkiller.newNotify()
 			Body.TextXAlignment = Enum.TextXAlignment.Left
 			Body.TextYAlignment = Enum.TextYAlignment.Top
 
-			TimeLeftFrame.Name = ""
+			TimeLeftFrame.Name = Compkiller:_RandomString()
 			TimeLeftFrame.Parent = NotifyFrame
 			TimeLeftFrame.AnchorPoint = Vector2.new(0, 1)
 			TimeLeftFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -10403,7 +10524,7 @@ function Compkiller.newNotify()
 			UICorner_2.CornerRadius = UDim.new(0, 4)
 			UICorner_2.Parent = TimeLeftFrame
 
-			TimeLeft.Name = ""
+			TimeLeft.Name = Compkiller:_RandomString()
 			TimeLeft.Parent = TimeLeftFrame
 			TimeLeft.BackgroundColor3 = Compkiller.Colors.Highlight
 			TimeLeft.BorderColor3 = Color3.fromRGB(0, 0, 0)
