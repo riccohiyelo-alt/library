@@ -69,7 +69,7 @@
 
 -- library init
 	local library = {
-		directory = "neverPaste",
+		directory = "NeverPaste",
 		folders = {
 			"/fonts",
 			"/configs",
