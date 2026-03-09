@@ -1,3 +1,12 @@
+--[[
+    		Fatality-Dark Interface
+
+    Author: 4lpaca
+    License: MIT
+    Github: https://github.com/4lpaca-pin/Fatality
+--]]
+
+-- Export Types --
 export type Window = {
 	Name: string,
 	Keybind: string | Enum.KeyCode,
@@ -261,14 +270,43 @@ local TweenService = cloneref(game:GetService('TweenService'));
 local RunService = cloneref(game:GetService('RunService'));
 local Players = cloneref(game:GetService('Players'));
 local UserInputService = cloneref(game:GetService('UserInputService'));
+local Workspace = cloneref(game:GetService('Workspace'));
+local CoreGuiService = cloneref(game:GetService('CoreGui'));
 local Client = Players.LocalPlayer;
 local Mouse = Client:GetMouse();
-local CurrentCamera = workspace.CurrentCamera;
-local _,CoreGui = xpcall(function()
-	return (gethui and gethui()) or game:GetService("CoreGui"):FindFirstChild("RobloxGui");
-end,function()
-	return Client.PlayerGui;
-end);
+local CurrentCamera = Workspace.CurrentCamera;
+
+local function ResolveGuiParent()
+	local candidates = {
+		function()
+			if type(gethui) == "function" then
+				return gethui();
+			end;
+		end,
+		function()
+			if type(get_hidden_gui) == "function" then
+				return get_hidden_gui();
+			end;
+		end,
+		function()
+			return CoreGuiService;
+		end,
+		function()
+			return Client:FindFirstChildOfClass("PlayerGui") or Client.PlayerGui;
+		end
+	};
+
+	for _,resolver in next , candidates do
+		local success, result = pcall(resolver);
+
+		if success and typeof(result) == "Instance" then
+			local cloneSuccess, clonedResult = pcall(cloneref, result);
+			return (cloneSuccess and clonedResult) or result;
+		end;
+	end;
+
+	return Client:WaitForChild("PlayerGui");
+end;
 
 -- Fatality --
 local Fatality = {};
@@ -276,6 +314,8 @@ local Fatality = {};
 Fatality.Ascii = "qwertyuiopasdfghjklzxcvbnmQWRTYUIOPASDFGHJKLZXCVBNM";
 Fatality.GLOBAL_ENVIRONMENT = {};
 Fatality.Windows = {};
+Fatality.Keybinds = {};
+Fatality.KeybindConnection = nil;
 Fatality.FontSemiBold = Font.new('rbxasset://fonts/families/GothamSSm.json',Enum.FontWeight.SemiBold,Enum.FontStyle.Normal);
 Fatality.Flags = {};
 Fatality.Colors = {
@@ -1273,6 +1313,87 @@ function Fatality:CreateResponse(args: {[string] : (any) -> any})
 	end;
 
 	return main;
+end;
+
+function Fatality:NormalizeKeybind(Value)
+	if Value == nil or Value == "" or Value == "None" then
+		return nil;
+	end;
+
+	if typeof(Value) == "EnumItem" then
+		return Value;
+	end;
+
+	if typeof(Value) == "string" then
+		if Value == "MouseLeft" or Value == "MouseRight" or Value == "MouseMiddle" then
+			return Value;
+		end;
+
+		return Enum.KeyCode[Value] or Value;
+	end;
+
+	return nil;
+end;
+
+function Fatality:SerializeKeybind(Value)
+	if typeof(Value) == "EnumItem" then
+		return Value.Name;
+	end;
+
+	if typeof(Value) == "string" then
+		return Value;
+	end;
+
+	return nil;
+end;
+
+function Fatality:InputMatchesKeybind(Input: InputObject, Value): boolean
+	local Normalized = Fatality:NormalizeKeybind(Value);
+
+	if not Normalized then
+		return false;
+	end;
+
+	if typeof(Normalized) == "EnumItem" then
+		return Input.KeyCode == Normalized;
+	end;
+
+	if Normalized == "MouseLeft" then
+		return Input.UserInputType == Enum.UserInputType.MouseButton1;
+	elseif Normalized == "MouseRight" then
+		return Input.UserInputType == Enum.UserInputType.MouseButton2;
+	elseif Normalized == "MouseMiddle" then
+		return Input.UserInputType == Enum.UserInputType.MouseButton3;
+	end;
+
+	local KeyCode = Enum.KeyCode[Normalized];
+	return (KeyCode and Input.KeyCode == KeyCode) or Input.KeyCode.Name == Normalized or Input.UserInputType.Name == Normalized;
+end;
+
+function Fatality:RegisterKeybind(Entry)
+	table.insert(Fatality.Keybinds, Entry);
+
+	if Fatality.KeybindConnection then
+		return Entry;
+	end;
+
+	Fatality.KeybindConnection = UserInputService.InputBegan:Connect(function(Input, Typing)
+		if Typing or UserInputService:GetFocusedTextBox() then
+			return;
+		end;
+
+		for Index = #Fatality.Keybinds, 1, -1 do
+			local Keybind = Fatality.Keybinds[Index];
+
+			if not Keybind or (Keybind.Frame and Keybind.Frame.Parent == nil) then
+				table.remove(Fatality.Keybinds, Index);
+			elseif not Keybind:IsBinding() and Fatality:InputMatchesKeybind(Input, Keybind:GetValue()) then
+				Keybind:Fire(Input);
+			end;
+		end;
+	end);
+
+	return Entry;
 end;
 
 function Fatality:GetWindowFromElement(Element: GuiObject)
@@ -3311,7 +3432,7 @@ function Fatality:CreateElements(Parent : Frame , ZIndex : number , Event : Bind
 		Config = Config or {};
 		Config.Name = Config.Name or "Keybind";
 		Config.Option = Config.Option or false;
-		Config.Default = Config.Default or nil;
+		Config.Default = Fatality:NormalizeKeybind(Config.Default);
 		Config.Callback = Config.Callback or function(any) end;
 
 		local Keys = {
@@ -3445,6 +3566,7 @@ function Fatality:CreateElements(Parent : Frame , ZIndex : number , Event : Bind
 				return;
 			end;
 
+			IsBinding = true;
 			ValueText.Text = "...";
 
 			local Selected = nil;
@@ -3458,17 +3580,19 @@ function Fatality:CreateElements(Parent : Frame , ZIndex : number , Event : Bind
 						Selected = "MouseLeft";
 					elseif Key.UserInputType == Enum.UserInputType.MouseButton2 then
 						Selected = "MouseRight";
+					elseif Key.UserInputType == Enum.UserInputType.MouseButton3 then
+						Selected = "MouseMiddle";
 					end;
 				end;
 			end;
 
-			Config.Default = Selected;
+			Config.Default = Fatality:NormalizeKeybind(Selected);
 
-			ValueText.Text = GetItem(Selected);
+			ValueText.Text = GetItem(Config.Default);
 
 			IsBinding = false;
 
-			Config.Callback(typeof(Selected) == "string" and Selected or Selected.Name);
+			Config.Callback(Fatality:SerializeKeybind(Config.Default));
 		end);
 
 		local OpcToggle = function(value)
@@ -3517,21 +3641,39 @@ function Fatality:CreateElements(Parent : Frame , ZIndex : number , Event : Bind
 				Fatality:ProtectText(Keybind_Name,new_name);
 			end,
 			GetValue = function()
-				return Config.Default;
+				return Fatality:SerializeKeybind(Config.Default);
 			end,
 			Signal = Event.Event:Connect(OpcToggle),
 			SetValue = function(def)
-				local IsSame = Config.Default == def;
+				local NextValue = Fatality:NormalizeKeybind(def);
+				local PreviousValue = Fatality:SerializeKeybind(Config.Default);
 
-				Config.Default = def;
+				Config.Default = NextValue;
 				ValueText.Text = GetItem(Config.Default);
 
-				if not IsSame then
-					Config.Callback(Config.Default);
+				if PreviousValue ~= Fatality:SerializeKeybind(Config.Default) then
+					Config.Callback(Fatality:SerializeKeybind(Config.Default));
 				end;
 			end,
 			Flag = Config.Flag and Config.Flag.."Keybind",
 			Option = (Config.Option and Fatality:CreateOption(OptionButton)) or nil;
+		});
+
+		Fatality:RegisterKeybind({
+			Frame = Keybind,
+			IsBinding = function()
+				return IsBinding;
+			end,
+			GetValue = function()
+				return Config.Default;
+			end,
+			Fire = function()
+				local CurrentValue = Fatality:SerializeKeybind(Config.Default);
+
+				if CurrentValue then
+					Config.Callback(CurrentValue);
+				end;
+			end
 		});
 
 		if Config.Flag then
@@ -4144,7 +4286,7 @@ function Fatality.new(Window: Window)
 	Window = Window or {};
 	Window.Name = Window.Name or "FATALITY";
 	Window.Scale = Window.Scale or UDim2.new(0, 750, 0, 500);
-	Window.Keybind = Window.Keybind or "Insert";
+	Window.Keybind = Fatality:NormalizeKeybind(Window.Keybind or "Insert");
 	Window.Expire = Window.Expire or "never";
 
 	local Fatal = {
@@ -4384,7 +4526,7 @@ function Fatality.new(Window: Window)
 	end
 
 	Fatalitywin.Name = Fatality:RandomString();
-	Fatalitywin.Parent = CoreGui;
+	Fatalitywin.Parent = ResolveGuiParent();
 	Fatalitywin.ResetOnSpawn = false;
 	Fatalitywin.IgnoreGuiInset = true;
 	Fatalitywin.ZIndexBehavior = Enum.ZIndexBehavior.Global;
@@ -4626,7 +4768,7 @@ function Fatality.new(Window: Window)
 
 	UserInputService.InputBegan:Connect(function(input,istyping)
 		if not istyping then
-			if input.KeyCode == Window.Keybind or input.KeyCode.Name == Window.Keybind then
+			if Fatality:InputMatchesKeybind(input, Window.Keybind) then
 				Fatal.Toggle = not Fatal.Toggle;
 
 				ToggleUI(Fatal.Toggle);
@@ -6363,7 +6505,7 @@ function Fatality:Loader(Config: Loader)
 	local BlackFrame = Instance.new("Frame")
 
 	Loader.Name = Fatality:RandomString()
-	Loader.Parent = CoreGui
+	Loader.Parent = ResolveGuiParent()
 	Loader.IgnoreGuiInset = true
 	Loader.ZIndexBehavior = Enum.ZIndexBehavior.Global
 
@@ -6577,7 +6719,7 @@ function Fatality:CreateNotifier(): Notifier
 	local UIListLayout = Instance.new("UIListLayout")
 
 	Notify.Name = Fatality:RandomString();
-	Notify.Parent = CoreGui
+	Notify.Parent = ResolveGuiParent()
 	Notify.ResetOnSpawn = false
 	Notify.ZIndexBehavior = Enum.ZIndexBehavior.Global
 	Notify.IgnoreGuiInset = true;
