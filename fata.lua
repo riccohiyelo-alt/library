@@ -138,13 +138,7 @@ export type Notifier = {
 
 -- Exploit Environments --
 cloneref = cloneref or function(i) return i; end;
-clonefunction = clonefunction or function(...) return ...; end;
-hookfunction = hookfunction or function(a,b) return a; end;
 getgenv = getgenv or getfenv;
-protect_gui = protect_gui or protectgui or (syn and syn.protect_gui) or function() end;
-setclipboard = setclipboard or toclipboard or function() end;
-getcustomasset = getcustomasset or getsynasset or function(path) return path; end;
-getgenv().LPH_NO_VIRTUALIZE = LPH_NO_VIRTUALIZE or function(f) return f end;
 
 -- Services --
 local TextService = cloneref(game:GetService('TextService'));
@@ -166,138 +160,12 @@ local Client = Players.LocalPlayer;
 local Mouse = Client:GetMouse();
 local CurrentCamera = Workspace.CurrentCamera;
 
-if RunService:IsStudio() then
-	local BaseWorkspace = Instance.new('Folder', ReplicatedFirst);
-
-	BaseWorkspace.Name = "WORKSPACE";
-
-	local __get_path_c = function(path)
-		return (string.find(path,'/',1,true) and string.split(path,'/')) or (string.find(path,'\\',1,true) and string.split(path,'\\')) or {path};
-	end
-
-	local __get_path = function(path)
-		local main = __get_path_c(path);
-
-		local block = BaseWorkspace;
-
-		for i,v in next , main do
-			block = block[v];
-		end;
-
-		return block;
-	end;
-
-	getgenv().readfile = function(path)
-		local path : StringValue = __get_path(path);
-
-		return path.Value;
-	end;
-
-	getgenv().isfile = function(path)
-		local success , message = pcall(function()
-			return __get_path(path);
-		end);
-
-		if success and not message:IsA("Folder") then
-			return true;
-		end;
-
-		return false;
-	end;
-
-	getgenv().isfolder = function(path)
-		local success , message = pcall(function()
-			return __get_path(path);
-		end);
-
-		if success and message:IsA("Folder") then
-			return true;
-		end;
-
-		return false;
-	end;
-
-	getgenv().writefile = function(path,content)
-		local main = __get_path_c(path);
-
-		local block = BaseWorkspace;
-
-		for i,v in next , main do
-			local item = block:FindFirstChild(v);
-			if not item then
-				local c = Instance.new('StringValue',block);
-
-				c.Name = tostring(v);
-				c.Value = content;
-			else
-				if item:IsA('StringValue') and tostring(item) == v then
-					item.Name = tostring(v);
-					item.Value = content;
-				end;
-
-				block = item;
-			end;
-		end;
-	end;
-
-	getgenv().listfiles = function(path)
-		local fold = __get_path(path);
-		local pa = {};
-
-		for i,v in next , fold:GetChildren() do
-			if v:IsA('StringValue') then
-				table.insert(pa,path..'/'..tostring(v));
-			end;
-		end;
-
-		return pa;
-	end;
-
-	getgenv().makefolder = function(path)
-		local main = __get_path_c(path);
-
-		local block = BaseWorkspace;
-
-		for i,v in next , main do
-			local item = block:FindFirstChild(v);
-			if not item then
-				local c = Instance.new('Folder',block);
-
-				c.Name = tostring(v);
-			else
-				block = item;
-			end;
-		end;
-	end;
-
-	getgenv().delfile = function(path)
-		local main = __get_path_c(path);
-
-		local block = BaseWorkspace;
-
-		for i,v in next , main do
-			local item = block:FindFirstChild(v);
-			if item and item:IsA('StringValue') then
-				item:Destroy();
-			else
-				block = item;
-			end;
-		end;
-	end;
-end;
-
 local function ResolveGuiParent()
 	if type(gethui) ~= "function" then
 		return nil;
 	end;
 
-	local success, result = pcall(gethui);
-	if success and typeof(result) == "Instance" then
-		local cloneSuccess, clonedResult = pcall(cloneref, result);
-		return (cloneSuccess and clonedResult) or result;
-	end;
-
-	return nil;
+	return gethui();
 end;
 
 -- Fatality --
@@ -1522,7 +1390,6 @@ function Fatality:EnsureKeybindList()
 	ScreenGui.ResetOnSpawn = false;
 	ScreenGui.IgnoreGuiInset = true;
 	ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
-	protect_gui(ScreenGui);
 
 	Outline.Name = Fatality:RandomString();
 	Outline.Parent = ScreenGui;
@@ -5387,10 +5254,6 @@ function Fatality.new(Window: Window)
 	Fatalitywin.ZIndexBehavior = Enum.ZIndexBehavior.Global;
 
 	table.insert(Fatality.Windows,Fatalitywin)
-
-	if GuiParent then
-		protect_gui(Fatalitywin);
-	end;
 
 	FatalFrame.Active = true;
 	FatalFrame.Name = Fatality:RandomString()
