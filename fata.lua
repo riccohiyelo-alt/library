@@ -142,6 +142,8 @@ clonefunction = clonefunction or function(...) return ...; end;
 hookfunction = hookfunction or function(a,b) return a; end;
 getgenv = getgenv or getfenv;
 protect_gui = protect_gui or protectgui or (syn and syn.protect_gui) or function() end;
+setclipboard = setclipboard or toclipboard or function() end;
+getcustomasset = getcustomasset or getsynasset or function(path) return path; end;
 getgenv().LPH_NO_VIRTUALIZE = LPH_NO_VIRTUALIZE or function(f) return f end;
 
 -- Services --
@@ -307,6 +309,11 @@ Fatality.Windows = {};
 Fatality.Keybinds = {};
 Fatality.KeybindConnection = nil;
 Fatality.KeybindReleaseConnection = nil;
+Fatality.KeybindDisplayEntries = {};
+Fatality.KeybindListGui = nil;
+Fatality.KeybindListFrame = nil;
+Fatality.KeybindListHolder = nil;
+Fatality.KeybindListEnabled = true;
 Fatality.FontSemiBold = Font.new('rbxasset://fonts/families/GothamSSm.json',Enum.FontWeight.SemiBold,Enum.FontStyle.Normal);
 Fatality.Flags = {};
 Fatality.Colors = {
@@ -1459,6 +1466,575 @@ function Fatality:RegisterKeybind(Entry)
 	return Entry;
 end;
 
+function Fatality:CaptureKeybindInput()
+	while true do
+		local Input = UserInputService.InputBegan:Wait();
+
+		if Input.KeyCode == Enum.KeyCode.Escape then
+			return nil;
+		elseif Input.KeyCode ~= Enum.KeyCode.Unknown then
+			return Input.KeyCode;
+		elseif Input.UserInputType == Enum.UserInputType.MouseButton1 then
+			return "MouseLeft";
+		elseif Input.UserInputType == Enum.UserInputType.MouseButton2 then
+			return "MouseRight";
+		elseif Input.UserInputType == Enum.UserInputType.MouseButton3 then
+			return "MouseMiddle";
+		end;
+	end;
+end;
+
+function Fatality:FormatKeybindListText(Name: string, Mode, Key): string
+	return string.format("[ %s ] %s - %s", Fatality:NormalizeBindMode(Mode), tostring(Name or "Keybind"), Fatality:GetKeybindName(Key));
+end;
+
+function Fatality:EnsureKeybindList()
+	if Fatality.KeybindListFrame and Fatality.KeybindListFrame.Parent then
+		return Fatality.KeybindListFrame;
+	end;
+
+	local GuiParent = ResolveGuiParent();
+	if not GuiParent then
+		return nil;
+	end;
+
+	local ScreenGui = Instance.new("ScreenGui");
+	local Outline = Instance.new("Frame");
+	local Inline = Instance.new("Frame");
+	local Background = Instance.new("Frame");
+	local Header = Instance.new("TextLabel");
+	local HeaderAccent = Instance.new("Frame");
+	local HolderOutline = Instance.new("Frame");
+	local HolderInline = Instance.new("Frame");
+	local HolderBackground = Instance.new("Frame");
+	local HolderLayout = Instance.new("UIListLayout");
+	local HolderPadding = Instance.new("UIPadding");
+	local OutlineCorner = Instance.new("UICorner");
+	local InlineCorner = Instance.new("UICorner");
+	local BackgroundCorner = Instance.new("UICorner");
+	local HolderOutlineCorner = Instance.new("UICorner");
+	local HolderInlineCorner = Instance.new("UICorner");
+	local HolderBackgroundCorner = Instance.new("UICorner");
+	local Shadow = Instance.new("ImageLabel");
+
+	ScreenGui.Name = Fatality:RandomString();
+	ScreenGui.Parent = GuiParent;
+	ScreenGui.ResetOnSpawn = false;
+	ScreenGui.IgnoreGuiInset = true;
+	ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
+	protect_gui(ScreenGui);
+
+	Outline.Name = Fatality:RandomString();
+	Outline.Parent = ScreenGui;
+	Outline.Active = true;
+	Outline.BackgroundColor3 = Color3.fromRGB(29, 29, 29);
+	Outline.BorderSizePixel = 0;
+	Outline.Position = UDim2.fromOffset(50, 200);
+	Outline.Size = UDim2.new(0, 190, 0, 28);
+	Outline.Visible = false;
+	Outline.ZIndex = 300;
+
+	OutlineCorner.CornerRadius = UDim.new(0, 4);
+	OutlineCorner.Parent = Outline;
+
+	Inline.Name = Fatality:RandomString();
+	Inline.Parent = Outline;
+	Inline.BackgroundColor3 = Fatality.Colors.Black;
+	Inline.BorderSizePixel = 0;
+	Inline.Position = UDim2.new(0, 1, 0, 1);
+	Inline.Size = UDim2.new(1, -2, 1, -2);
+	Inline.ZIndex = 301;
+
+	InlineCorner.CornerRadius = UDim.new(0, 4);
+	InlineCorner.Parent = Inline;
+
+	Background.Name = Fatality:RandomString();
+	Background.Parent = Inline;
+	Background.BackgroundColor3 = Color3.fromRGB(24, 24, 24);
+	Background.BorderSizePixel = 0;
+	Background.Position = UDim2.new(0, 1, 0, 1);
+	Background.Size = UDim2.new(1, -2, 1, -2);
+	Background.ZIndex = 302;
+
+	BackgroundCorner.CornerRadius = UDim.new(0, 4);
+	BackgroundCorner.Parent = Background;
+
+	Shadow.Name = Fatality:RandomString();
+	Shadow.Parent = Outline;
+	Shadow.AnchorPoint = Vector2.new(0.5, 0.5);
+	Shadow.BackgroundTransparency = 1;
+	Shadow.BorderSizePixel = 0;
+	Shadow.Position = UDim2.new(0.5, 0, 0.5, 0);
+	Shadow.Size = UDim2.new(1, 47, 1, 47);
+	Shadow.ZIndex = 299;
+	Shadow.Image = "rbxassetid://6014261993";
+	Shadow.ImageColor3 = Color3.fromRGB(0, 0, 0);
+	Shadow.ImageTransparency = 0.75;
+	Shadow.ScaleType = Enum.ScaleType.Slice;
+	Shadow.SliceCenter = Rect.new(49, 49, 450, 450);
+
+	HeaderAccent.Name = Fatality:RandomString();
+	HeaderAccent.Parent = Background;
+	HeaderAccent.BackgroundColor3 = Fatality.Colors.Accent;
+	HeaderAccent.BorderSizePixel = 0;
+	HeaderAccent.Size = UDim2.new(1, 0, 0, 2);
+	HeaderAccent.ZIndex = 303;
+
+	Header.Name = Fatality:RandomString();
+	Header.Parent = Background;
+	Header.BackgroundTransparency = 1;
+	Header.Size = UDim2.new(1, 0, 0, 22);
+	Header.ZIndex = 303;
+	Header.FontFace = Fatality.FontSemiBold;
+	Header.Text = "Keybinds";
+	Header.TextColor3 = Color3.fromRGB(255, 255, 255);
+	Header.TextSize = 12;
+	Header.TextTransparency = 0.2;
+
+	HolderOutline.Name = Fatality:RandomString();
+	HolderOutline.Parent = Background;
+	HolderOutline.BackgroundColor3 = Color3.fromRGB(29, 29, 29);
+	HolderOutline.BorderSizePixel = 0;
+	HolderOutline.Position = UDim2.new(0, 4, 0, 24);
+	HolderOutline.Size = UDim2.new(1, -8, 0, 0);
+	HolderOutline.ZIndex = 303;
+
+	HolderOutlineCorner.CornerRadius = UDim.new(0, 3);
+	HolderOutlineCorner.Parent = HolderOutline;
+
+	HolderInline.Name = Fatality:RandomString();
+	HolderInline.Parent = HolderOutline;
+	HolderInline.BackgroundColor3 = Fatality.Colors.Black;
+	HolderInline.BorderSizePixel = 0;
+	HolderInline.Position = UDim2.new(0, 1, 0, 1);
+	HolderInline.Size = UDim2.new(1, -2, 1, -2);
+	HolderInline.ZIndex = 304;
+
+	HolderInlineCorner.CornerRadius = UDim.new(0, 3);
+	HolderInlineCorner.Parent = HolderInline;
+
+	HolderBackground.Name = Fatality:RandomString();
+	HolderBackground.Parent = HolderInline;
+	HolderBackground.BackgroundColor3 = Color3.fromRGB(24, 24, 24);
+	HolderBackground.BorderSizePixel = 0;
+	HolderBackground.Position = UDim2.new(0, 1, 0, 1);
+	HolderBackground.Size = UDim2.new(1, -2, 1, -2);
+	HolderBackground.ZIndex = 305;
+
+	HolderBackgroundCorner.CornerRadius = UDim.new(0, 3);
+	HolderBackgroundCorner.Parent = HolderBackground;
+
+	HolderLayout.Parent = HolderBackground;
+	HolderLayout.Padding = UDim.new(0, 0);
+	HolderLayout.SortOrder = Enum.SortOrder.LayoutOrder;
+
+	HolderPadding.Parent = HolderBackground;
+	HolderPadding.PaddingBottom = UDim.new(0, 4);
+	HolderPadding.PaddingLeft = UDim.new(0, 5);
+	HolderPadding.PaddingRight = UDim.new(0, 5);
+	HolderPadding.PaddingTop = UDim.new(0, 2);
+
+	Fatality:Drag(Outline, Outline, 0.1);
+
+	Fatality.KeybindListGui = ScreenGui;
+	Fatality.KeybindListFrame = Outline;
+	Fatality.KeybindListHolder = HolderBackground;
+
+	return Outline;
+end;
+
+function Fatality:RefreshKeybindList()
+	local Outline = Fatality:EnsureKeybindList();
+	local Holder = Fatality.KeybindListHolder;
+	if not Outline or not Holder then
+		return;
+	end;
+
+	local VisibleCount = 0;
+
+	for Index = #Fatality.KeybindDisplayEntries, 1, -1 do
+		local Entry = Fatality.KeybindDisplayEntries[Index];
+		local IsDead = (not Entry)
+			or (type(Entry.IsAlive) == "function" and not Entry:IsAlive())
+			or (Entry.Frame and Entry.Frame.Parent == nil);
+
+		if IsDead then
+			if Entry and Entry.Row then
+				Entry.Row:Destroy();
+			end;
+
+			table.remove(Fatality.KeybindDisplayEntries, Index);
+		else
+			if not Entry.Row then
+				local Row = Instance.new("TextLabel");
+				local Stroke = Instance.new("UIStroke");
+
+				Row.Name = Fatality:RandomString();
+				Row.Parent = Holder;
+				Row.BackgroundTransparency = 1;
+				Row.Size = UDim2.new(1, 0, 0, 17);
+				Row.ZIndex = 306;
+				Row.FontFace = Fatality.FontSemiBold;
+				Row.TextColor3 = Color3.fromRGB(255, 255, 255);
+				Row.TextSize = 12;
+				Row.TextTransparency = 0.15;
+				Row.TextStrokeTransparency = 0.9;
+				Row.TextXAlignment = Enum.TextXAlignment.Left;
+				Row.TextTruncate = Enum.TextTruncate.AtEnd;
+				Row.Visible = false;
+
+				Stroke.Parent = Row;
+				Stroke.Transparency = 0.75;
+				Stroke.Thickness = 1;
+
+				Entry.Row = Row;
+			end;
+
+			local Mode = type(Entry.GetMode) == "function" and Entry:GetMode() or "Toggle";
+			local Key = type(Entry.GetKey) == "function" and Entry:GetKey() or nil;
+			local Active = type(Entry.IsActive) == "function" and Entry:IsActive() or false;
+			local Visible = Active and Fatality:NormalizeBindMode(Mode) ~= "None";
+
+			if Visible and type(Entry.IsVisible) == "function" then
+				Visible = Entry:IsVisible();
+			end;
+
+			if Visible then
+				Entry.Row.Visible = Fatality.KeybindListEnabled;
+				Entry.Row.Text = Fatality:FormatKeybindListText((type(Entry.GetName) == "function" and Entry:GetName()) or Entry.Name, Mode, Key);
+				VisibleCount = VisibleCount + 1;
+			else
+				Entry.Row.Visible = false;
+				Entry.Row.Text = "";
+			end;
+		end;
+	end;
+
+	local ContentHeight = (VisibleCount > 0 and (VisibleCount * 17) + 6) or 0;
+	Holder.Parent.Parent.Size = UDim2.new(1, -8, 0, ContentHeight + 4);
+	Holder.Parent.Size = UDim2.new(1, -2, 0, ContentHeight + 2);
+	Holder.Size = UDim2.new(1, -2, 0, ContentHeight);
+	Outline.Size = UDim2.new(0, 190, 0, 28 + ContentHeight);
+	Outline.Visible = Fatality.KeybindListEnabled and VisibleCount > 0;
+end;
+
+function Fatality:RegisterKeybindDisplay(Entry)
+	table.insert(Fatality.KeybindDisplayEntries, Entry);
+	Fatality:RefreshKeybindList();
+	return Entry;
+end;
+
+function Fatality:SetKeybindListVisible(Value)
+	Fatality.KeybindListEnabled = (Value ~= false);
+	Fatality:RefreshKeybindList();
+end;
+
+function Fatality:CreateKeybindPopup(Config)
+	local Popup = Instance.new("Frame");
+	local PopupCorner = Instance.new("UICorner");
+	local PopupStroke = Instance.new("UIStroke");
+	local PopupShadow = Instance.new("ImageLabel");
+	local BindLabel = Instance.new("TextLabel");
+	local BindFrame = Instance.new("Frame");
+	local BindCorner = Instance.new("UICorner");
+	local BindText = Instance.new("TextLabel");
+	local ModeLabel = Instance.new("TextLabel");
+	local ModeHolder = Instance.new("Frame");
+	local ModeLayout = Instance.new("UIListLayout");
+	local PopupVisible = false;
+	local PopupThread = nil;
+	local ModeButtons = {};
+	local State = Config.State or {};
+	local SetVisible;
+
+	Popup.Name = Fatality:RandomString();
+	Popup.Parent = Config.Window;
+	Popup.Active = true;
+	Popup.BackgroundColor3 = Color3.fromRGB(24, 24, 24);
+	Popup.BorderSizePixel = 0;
+	Popup.ClipsDescendants = true;
+	Popup.Position = UDim2.fromOffset(-200, -200);
+	Popup.Size = UDim2.new(0, 0, 0, 0);
+	Popup.Visible = false;
+	Popup.ZIndex = Config.ZIndex or 125;
+
+	PopupCorner.CornerRadius = UDim.new(0, 4);
+	PopupCorner.Parent = Popup;
+
+	PopupStroke.Color = Color3.fromRGB(29, 29, 29);
+	PopupStroke.Transparency = 1;
+	PopupStroke.Parent = Popup;
+
+	PopupShadow.Name = Fatality:RandomString();
+	PopupShadow.Parent = Popup;
+	PopupShadow.AnchorPoint = Vector2.new(0.5, 0.5);
+	PopupShadow.BackgroundTransparency = 1;
+	PopupShadow.BorderSizePixel = 0;
+	PopupShadow.Position = UDim2.new(0.5, 0, 0.5, 0);
+	PopupShadow.Size = UDim2.new(1, 47, 1, 47);
+	PopupShadow.ZIndex = (Config.ZIndex or 125) - 1;
+	PopupShadow.Image = "rbxassetid://6014261993";
+	PopupShadow.ImageColor3 = Color3.fromRGB(0, 0, 0);
+	PopupShadow.ImageTransparency = 1;
+	PopupShadow.ScaleType = Enum.ScaleType.Slice;
+	PopupShadow.SliceCenter = Rect.new(49, 49, 450, 450);
+
+	BindLabel.Name = Fatality:RandomString();
+	BindLabel.Parent = Popup;
+	BindLabel.BackgroundTransparency = 1;
+	BindLabel.Position = UDim2.new(0, 10, 0, 8);
+	BindLabel.Size = UDim2.new(1, -20, 0, 14);
+	BindLabel.ZIndex = (Config.ZIndex or 125) + 1;
+	BindLabel.FontFace = Fatality.FontSemiBold;
+	BindLabel.Text = "Bind";
+	BindLabel.TextColor3 = Color3.fromRGB(255, 255, 255);
+	BindLabel.TextSize = 12;
+	BindLabel.TextTransparency = 0.2;
+	BindLabel.TextXAlignment = Enum.TextXAlignment.Left;
+
+	BindFrame.Name = Fatality:RandomString();
+	BindFrame.Parent = Popup;
+	BindFrame.BackgroundColor3 = Fatality.Colors.Black;
+	BindFrame.BorderSizePixel = 0;
+	BindFrame.Position = UDim2.new(0, 10, 0, 26);
+	BindFrame.Size = UDim2.new(1, -20, 0, 22);
+	BindFrame.ZIndex = (Config.ZIndex or 125) + 1;
+
+	BindCorner.CornerRadius = UDim.new(0, 3);
+	BindCorner.Parent = BindFrame;
+
+	BindText.Name = Fatality:RandomString();
+	BindText.Parent = BindFrame;
+	BindText.BackgroundTransparency = 1;
+	BindText.Size = UDim2.new(1, 0, 1, 0);
+	BindText.ZIndex = (Config.ZIndex or 125) + 2;
+	BindText.FontFace = Fatality.FontSemiBold;
+	BindText.TextColor3 = Color3.fromRGB(255, 255, 255);
+	BindText.TextSize = 11;
+	BindText.TextTransparency = 0.35;
+
+	ModeLabel.Name = Fatality:RandomString();
+	ModeLabel.Parent = Popup;
+	ModeLabel.BackgroundTransparency = 1;
+	ModeLabel.Position = UDim2.new(0, 10, 0, 56);
+	ModeLabel.Size = UDim2.new(1, -20, 0, 14);
+	ModeLabel.ZIndex = (Config.ZIndex or 125) + 1;
+	ModeLabel.FontFace = Fatality.FontSemiBold;
+	ModeLabel.Text = "Mode";
+	ModeLabel.TextColor3 = Color3.fromRGB(255, 255, 255);
+	ModeLabel.TextSize = 12;
+	ModeLabel.TextTransparency = 0.2;
+	ModeLabel.TextXAlignment = Enum.TextXAlignment.Left;
+
+	ModeHolder.Name = Fatality:RandomString();
+	ModeHolder.Parent = Popup;
+	ModeHolder.BackgroundTransparency = 1;
+	ModeHolder.Position = UDim2.new(0, 10, 0, 74);
+	ModeHolder.Size = UDim2.new(1, -20, 0, 22);
+	ModeHolder.ZIndex = (Config.ZIndex or 125) + 1;
+
+	ModeLayout.Parent = ModeHolder;
+	ModeLayout.FillDirection = Enum.FillDirection.Horizontal;
+	ModeLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center;
+	ModeLayout.Padding = UDim.new(0, 5);
+	ModeLayout.SortOrder = Enum.SortOrder.LayoutOrder;
+
+	local UpdateBindText = function()
+		BindText.Text = Fatality:GetKeybindName(Config.GetBind());
+	end;
+
+	local UpdateModeButtons = function()
+		local CurrentMode = Fatality:NormalizeBindMode(Config.GetMode());
+
+		for ModeName, Data in next, ModeButtons do
+			local Selected = CurrentMode == ModeName;
+
+			Fatality:CreateAnimation(Data.Button, 0.2, {
+				BackgroundColor3 = Selected and Color3.fromRGB(34, 34, 34) or Fatality.Colors.Black,
+			});
+
+			Fatality:CreateAnimation(Data.Label, 0.2, {
+				TextTransparency = Selected and 0.15 or 0.45,
+			});
+		end;
+	end;
+
+	for _, ModeData in next, (Config.Modes or {
+		{Value = "None", Label = "None"},
+		{Value = "Hold", Label = "Hold"},
+		{Value = "Toggle", Label = "Toggle"},
+		{Value = "Always", Label = "Always"},
+	}) do
+		local ModeButton = Instance.new("Frame");
+		local ModeCorner = Instance.new("UICorner");
+		local ModeText = Instance.new("TextLabel");
+
+		ModeButton.Name = Fatality:RandomString();
+		ModeButton.Parent = ModeHolder;
+		ModeButton.BackgroundColor3 = Fatality.Colors.Black;
+		ModeButton.BorderSizePixel = 0;
+		ModeButton.Size = UDim2.new(0, ModeData.Width or 48, 1, 0);
+		ModeButton.ZIndex = (Config.ZIndex or 125) + 1;
+
+		ModeCorner.CornerRadius = UDim.new(0, 3);
+		ModeCorner.Parent = ModeButton;
+
+		ModeText.Name = Fatality:RandomString();
+		ModeText.Parent = ModeButton;
+		ModeText.BackgroundTransparency = 1;
+		ModeText.Size = UDim2.new(1, 0, 1, 0);
+		ModeText.ZIndex = (Config.ZIndex or 125) + 2;
+		ModeText.FontFace = Fatality.FontSemiBold;
+		ModeText.Text = ModeData.Label;
+		ModeText.TextColor3 = Color3.fromRGB(255, 255, 255);
+		ModeText.TextSize = 10;
+		ModeText.TextTransparency = 0.45;
+
+		Fatality:NewInput(ModeButton, function()
+			Config.SetMode(ModeData.Value);
+			UpdateModeButtons();
+			if SetVisible then
+				SetVisible(false);
+			end;
+		end);
+
+		ModeButtons[ModeData.Value] = {
+			Button = ModeButton,
+			Label = ModeText,
+		};
+	end;
+
+	Fatality:NewInput(BindFrame, function()
+		if State.Binding then
+			return;
+		end;
+
+		State.Binding = true;
+		BindText.Text = "...";
+
+		local Selected = Fatality:CaptureKeybindInput();
+		Config.SetBind(Selected);
+
+		State.Binding = false;
+		UpdateBindText();
+		UpdateModeButtons();
+	end);
+
+	local function UpdatePosition()
+		local Anchor = Config.Anchor;
+		local Offset = Config.Offset or Vector2.new(120, 0);
+		Popup.Position = UDim2.fromOffset(Anchor.AbsolutePosition.X + Offset.X, Anchor.AbsolutePosition.Y + Offset.Y);
+	end;
+
+	SetVisible = function(Value)
+		PopupVisible = Value == true;
+
+		if PopupVisible then
+			if type(Fatality.GLOBAL_ENVIRONMENT.OPEN_KEYBIND_POPUP) == "function" and Fatality.GLOBAL_ENVIRONMENT.OPEN_KEYBIND_POPUP ~= SetVisible then
+				Fatality.GLOBAL_ENVIRONMENT.OPEN_KEYBIND_POPUP(false);
+			end;
+
+			Fatality.GLOBAL_ENVIRONMENT.OPEN_KEYBIND_POPUP = SetVisible;
+			UpdateBindText();
+			UpdateModeButtons();
+			UpdatePosition();
+			Popup.Visible = true;
+
+			Fatality:CreateAnimation(Popup, 0.2, {
+				Size = UDim2.new(0, Config.Width or 185, 0, Config.Height or 103),
+			});
+
+			Fatality:CreateAnimation(PopupStroke, 0.2, {
+				Transparency = 0,
+			});
+
+			Fatality:CreateAnimation(PopupShadow, 0.2, {
+				ImageTransparency = 0.75,
+			});
+
+			if PopupThread then
+				task.cancel(PopupThread);
+			end;
+
+			PopupThread = task.spawn(function()
+				while PopupVisible and Popup.Parent do
+					task.wait(0.1);
+					UpdatePosition();
+				end;
+			end);
+		else
+			if PopupThread then
+				task.cancel(PopupThread);
+				PopupThread = nil;
+			end;
+
+			if Fatality.GLOBAL_ENVIRONMENT.OPEN_KEYBIND_POPUP == SetVisible then
+				Fatality.GLOBAL_ENVIRONMENT.OPEN_KEYBIND_POPUP = nil;
+			end;
+
+			Fatality:CreateAnimation(Popup, 0.2, {
+				Size = UDim2.new(0, Config.Width or 185, 0, 0),
+			});
+
+			Fatality:CreateAnimation(PopupStroke, 0.2, {
+				Transparency = 1,
+			});
+
+			Fatality:CreateAnimation(PopupShadow, 0.2, {
+				ImageTransparency = 1,
+			});
+
+			task.delay(0.2, function()
+				if not PopupVisible and Popup.Parent then
+					Popup.Visible = false;
+				end;
+			end);
+		end;
+	end;
+
+	for _, InputObject in next, (Config.OpenInputs or {}) do
+		if InputObject then
+			InputObject.InputBegan:Connect(function(Input)
+				if Input.UserInputType == Enum.UserInputType.MouseButton2 then
+					SetVisible(not PopupVisible);
+				end;
+			end);
+		end;
+	end;
+
+	BindFrame.InputBegan:Connect(function(Input)
+		if Input.UserInputType == Enum.UserInputType.MouseButton2 then
+			SetVisible(false);
+		end;
+	end);
+
+	UserInputService.InputBegan:Connect(function(Input)
+		if not PopupVisible then
+			return;
+		end;
+
+		if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+			if not Fatality:IsMouseOverFrame(Popup) and not Fatality:IsMouseOverFrame(Config.Anchor) then
+				SetVisible(false);
+			end;
+		end;
+	end);
+
+	UpdateBindText();
+	UpdateModeButtons();
+
+	return {
+		IsBinding = function()
+			return State.Binding == true;
+		end,
+		SetVisible = SetVisible,
+		Refresh = function()
+			UpdateBindText();
+			UpdateModeButtons();
+		end,
+	};
+end;
+
 function Fatality:GetWindowFromElement(Element: GuiObject)
 	for i,v in next , Fatality.Windows do
 		if Element:IsDescendantOf(v) then
@@ -2559,12 +3135,10 @@ function Fatality:CreateElements(Parent : Frame , ZIndex : number , Event : Bind
 		local ToggleValueInput;
 		local ToggleBind = nil;
 		local ToggleBindMode = "Always";
-		local ToggleBindPopupThread;
 		local ToggleBindPopup;
-		local ToggleBindValueText;
-		local ToggleBindValueFrame;
-		local ToggleBindModeButtons = {};
-		local IsBindingToggle = false;
+		local ToggleBindState = {
+			Binding = false,
+		};
 
 		if SearchAPI then
 			SearchAPI.Memory(Config.Name);
@@ -2670,36 +3244,34 @@ function Fatality:CreateElements(Parent : Frame , ZIndex : number , Event : Bind
 			if not IsSame then
 				Config.Callback(Config.Default);
 			end;
-		end;
 
-		local UpdateBindButton = function()
-			if ToggleBindValueText then
-				ToggleBindValueText.Text = Fatality:GetKeybindName(ToggleBind);
-			end;
-		end;
-
-		local UpdateModeButtons = function()
-			for ModeName, ButtonData in next , ToggleBindModeButtons do
-				local Selected = ToggleBindMode == ModeName;
-
-				Fatality:CreateAnimation(ButtonData.Button,0.25,{
-					BackgroundColor3 = Selected and Color3.fromRGB(34, 34, 34) or Fatality.Colors.Black,
-				});
-
-				Fatality:CreateAnimation(ButtonData.Label,0.25,{
-					TextTransparency = Selected and 0.15 or 0.45
-				});
-			end;
+			Fatality:RefreshKeybindList();
 		end;
 
 		local SetBindMode = function(Value)
 			ToggleBindMode = Fatality:NormalizeBindMode(Value);
-			UpdateModeButtons();
+			if ToggleBindMode == "Always" then
+				ApplyToggleState(true);
+			elseif ToggleBindMode == "Hold" then
+				ApplyToggleState(false);
+			elseif ToggleBindMode == "None" then
+				ApplyToggleState(false);
+			else
+				Fatality:RefreshKeybindList();
+			end;
+
+			if ToggleBindPopup then
+				ToggleBindPopup.Refresh();
+			end;
 		end;
 
 		local SetToggleBind = function(Value)
 			ToggleBind = Fatality:NormalizeKeybind(Value);
-			UpdateBindButton();
+			Fatality:RefreshKeybindList();
+
+			if ToggleBindPopup then
+				ToggleBindPopup.Refresh();
+			end;
 		end;
 
 		local BuildToggleBindPopup = function()
@@ -2707,293 +3279,24 @@ function Fatality:CreateElements(Parent : Frame , ZIndex : number , Event : Bind
 				return;
 			end;
 
-			local OwnWindow = Fatality:GetWindowFromElement(Toggle);
-			local Popup = Instance.new("Frame")
-			local PopupCorner = Instance.new("UICorner")
-			local PopupStroke = Instance.new("UIStroke")
-			local PopupShadow = Instance.new("ImageLabel")
-			local BindLabel = Instance.new("TextLabel")
-			local BindFrame = Instance.new("Frame")
-			local BindCorner = Instance.new("UICorner")
-			local BindText = Instance.new("TextLabel")
-			local ModeLabel = Instance.new("TextLabel")
-			local ModeHolder = Instance.new("Frame")
-			local ModeLayout = Instance.new("UIListLayout")
-
-			Popup.Name = Fatality:RandomString();
-			Popup.Parent = OwnWindow;
-			Popup.Active = true;
-			Popup.BackgroundColor3 = Color3.fromRGB(24, 24, 24);
-			Popup.BorderSizePixel = 0;
-			Popup.ClipsDescendants = true;
-			Popup.Position = UDim2.fromOffset(-200,-200);
-			Popup.Size = UDim2.new(0, 0, 0, 0);
-			Popup.Visible = false;
-			Popup.ZIndex = 125;
-
-			PopupCorner.CornerRadius = UDim.new(0, 4);
-			PopupCorner.Parent = Popup;
-
-			PopupStroke.Color = Color3.fromRGB(29, 29, 29);
-			PopupStroke.Transparency = 1;
-			PopupStroke.Parent = Popup;
-
-			PopupShadow.Name = Fatality:RandomString();
-			PopupShadow.Parent = Popup;
-			PopupShadow.AnchorPoint = Vector2.new(0.5, 0.5);
-			PopupShadow.BackgroundTransparency = 1;
-			PopupShadow.BorderSizePixel = 0;
-			PopupShadow.Position = UDim2.new(0.5, 0, 0.5, 0);
-			PopupShadow.Size = UDim2.new(1, 47, 1, 47);
-			PopupShadow.ZIndex = 124;
-			PopupShadow.Image = "rbxassetid://6014261993";
-			PopupShadow.ImageColor3 = Color3.fromRGB(0, 0, 0);
-			PopupShadow.ImageTransparency = 1;
-			PopupShadow.ScaleType = Enum.ScaleType.Slice;
-			PopupShadow.SliceCenter = Rect.new(49, 49, 450, 450);
-
-			BindLabel.Name = Fatality:RandomString();
-			BindLabel.Parent = Popup;
-			BindLabel.BackgroundTransparency = 1;
-			BindLabel.Position = UDim2.new(0, 10, 0, 8);
-			BindLabel.Size = UDim2.new(1, -20, 0, 14);
-			BindLabel.ZIndex = 126;
-			BindLabel.FontFace = Fatality.FontSemiBold;
-			BindLabel.Text = "Bind";
-			BindLabel.TextColor3 = Color3.fromRGB(255, 255, 255);
-			BindLabel.TextSize = 12;
-			BindLabel.TextTransparency = 0.2;
-			BindLabel.TextXAlignment = Enum.TextXAlignment.Left;
-
-			BindFrame.Name = Fatality:RandomString();
-			BindFrame.Parent = Popup;
-			BindFrame.BackgroundColor3 = Fatality.Colors.Black;
-			BindFrame.BorderSizePixel = 0;
-			BindFrame.Position = UDim2.new(0, 10, 0, 26);
-			BindFrame.Size = UDim2.new(1, -20, 0, 22);
-			BindFrame.ZIndex = 126;
-
-			BindCorner.CornerRadius = UDim.new(0, 3);
-			BindCorner.Parent = BindFrame;
-
-			BindText.Name = Fatality:RandomString();
-			BindText.Parent = BindFrame;
-			BindText.BackgroundTransparency = 1;
-			BindText.Size = UDim2.new(1, 0, 1, 0);
-			BindText.ZIndex = 127;
-			BindText.FontFace = Fatality.FontSemiBold;
-			BindText.Text = "None";
-			BindText.TextColor3 = Color3.fromRGB(255, 255, 255);
-			BindText.TextSize = 11;
-			BindText.TextTransparency = 0.35;
-
-			ModeLabel.Name = Fatality:RandomString();
-			ModeLabel.Parent = Popup;
-			ModeLabel.BackgroundTransparency = 1;
-			ModeLabel.Position = UDim2.new(0, 10, 0, 56);
-			ModeLabel.Size = UDim2.new(1, -20, 0, 14);
-			ModeLabel.ZIndex = 126;
-			ModeLabel.FontFace = Fatality.FontSemiBold;
-			ModeLabel.Text = "Mode";
-			ModeLabel.TextColor3 = Color3.fromRGB(255, 255, 255);
-			ModeLabel.TextSize = 12;
-			ModeLabel.TextTransparency = 0.2;
-			ModeLabel.TextXAlignment = Enum.TextXAlignment.Left;
-
-			ModeHolder.Name = Fatality:RandomString();
-			ModeHolder.Parent = Popup;
-			ModeHolder.BackgroundTransparency = 1;
-			ModeHolder.Position = UDim2.new(0, 10, 0, 74);
-			ModeHolder.Size = UDim2.new(1, -20, 0, 22);
-			ModeHolder.ZIndex = 126;
-
-			ModeLayout.Parent = ModeHolder;
-			ModeLayout.FillDirection = Enum.FillDirection.Horizontal;
-			ModeLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center;
-			ModeLayout.Padding = UDim.new(0, 5);
-			ModeLayout.SortOrder = Enum.SortOrder.LayoutOrder;
-
-			for _,ModeData in next , {
-				{Value = "None", Label = "None"},
-				{Value = "Hold", Label = "Hold"},
-				{Value = "Toggle", Label = "Toggle"},
-				{Value = "Always", Label = "Allways"},
-			} do
-				local ModeButton = Instance.new("Frame");
-				local ModeCorner = Instance.new("UICorner");
-				local ModeText = Instance.new("TextLabel");
-				local ModeName = ModeData.Value;
-
-				ModeButton.Name = Fatality:RandomString();
-				ModeButton.Parent = ModeHolder;
-				ModeButton.BackgroundColor3 = Fatality.Colors.Black;
-				ModeButton.BorderSizePixel = 0;
-				ModeButton.Size = UDim2.new(0, 48, 1, 0);
-				ModeButton.ZIndex = 126;
-
-				ModeCorner.CornerRadius = UDim.new(0, 3);
-				ModeCorner.Parent = ModeButton;
-
-				ModeText.Name = Fatality:RandomString();
-				ModeText.Parent = ModeButton;
-				ModeText.BackgroundTransparency = 1;
-				ModeText.Size = UDim2.new(1, 0, 1, 0);
-				ModeText.ZIndex = 127;
-				ModeText.FontFace = Fatality.FontSemiBold;
-				ModeText.Text = ModeData.Label;
-				ModeText.TextColor3 = Color3.fromRGB(255, 255, 255);
-				ModeText.TextSize = 10;
-				ModeText.TextTransparency = 0.45;
-
-				Fatality:NewInput(ModeButton,function()
-					SetBindMode(ModeName);
-				end);
-
-				ToggleBindModeButtons[ModeName] = {
-					Button = ModeButton,
-					Label = ModeText
-				};
-			end;
-
-			Fatality:NewInput(BindFrame,function()
-				if IsBindingToggle then
-					return;
-				end;
-
-				IsBindingToggle = true;
-				BindText.Text = "...";
-
-				local Selected = nil;
-				local Done = false;
-				while not Done do
-					local Input = UserInputService.InputBegan:Wait();
-
-					if Input.KeyCode == Enum.KeyCode.Escape then
-						Selected = nil;
-						Done = true;
-					elseif Input.KeyCode ~= Enum.KeyCode.Unknown then
-						Selected = Input.KeyCode;
-						Done = true;
-					elseif Input.UserInputType == Enum.UserInputType.MouseButton1 then
-						Selected = "MouseLeft";
-						Done = true;
-					elseif Input.UserInputType == Enum.UserInputType.MouseButton2 then
-						Selected = "MouseRight";
-						Done = true;
-					elseif Input.UserInputType == Enum.UserInputType.MouseButton3 then
-						Selected = "MouseMiddle";
-						Done = true;
-					end;
-				end;
-
-				SetToggleBind(Selected);
-				IsBindingToggle = false;
-			end);
-
-			ToggleBindPopup = Popup;
-			ToggleBindValueText = BindText;
-			ToggleBindValueFrame = BindFrame;
-			UpdateBindButton();
-			UpdateModeButtons();
-
-			local SetPopupVisible;
-			SetPopupVisible = function(Value)
-				if not ToggleBindPopup then
-					return;
-				end;
-
-				if Value then
-					if type(Fatality.GLOBAL_ENVIRONMENT.OPEN_TOGGLE_BIND_POPUP) == "function" and Fatality.GLOBAL_ENVIRONMENT.OPEN_TOGGLE_BIND_POPUP ~= SetPopupVisible then
-						Fatality.GLOBAL_ENVIRONMENT.OPEN_TOGGLE_BIND_POPUP(false);
-					end;
-
-					Fatality.GLOBAL_ENVIRONMENT.OPEN_TOGGLE_BIND_POPUP = SetPopupVisible;
-					ToggleBindPopup.Visible = true;
-
-					local PopupSize = Vector2.new(185, 103);
-					ToggleBindPopup.Position = UDim2.fromOffset(Toggle.AbsolutePosition.X + 120, Toggle.AbsolutePosition.Y);
-
-					Fatality:CreateAnimation(ToggleBindPopup,0.25,{
-						Size = UDim2.new(0, PopupSize.X, 0, PopupSize.Y)
-					});
-
-					Fatality:CreateAnimation(PopupStroke,0.25,{
-						Transparency = 0
-					});
-
-					Fatality:CreateAnimation(PopupShadow,0.25,{
-						ImageTransparency = 0.75
-					});
-
-					if ToggleBindPopupThread then
-						task.cancel(ToggleBindPopupThread);
-						ToggleBindPopupThread = nil;
-					end;
-
-					ToggleBindPopupThread = task.spawn(function()
-						while ToggleBindPopup and ToggleBindPopup.Visible do
-							task.wait(0.1);
-
-							Fatality:CreateAnimation(ToggleBindPopup,0.2,{
-								Position = UDim2.fromOffset(Toggle.AbsolutePosition.X + 120, Toggle.AbsolutePosition.Y)
-							});
-						end;
-					end);
-				else
-					if ToggleBindPopupThread then
-						task.cancel(ToggleBindPopupThread);
-						ToggleBindPopupThread = nil;
-					end;
-
-					if Fatality.GLOBAL_ENVIRONMENT.OPEN_TOGGLE_BIND_POPUP == SetPopupVisible then
-						Fatality.GLOBAL_ENVIRONMENT.OPEN_TOGGLE_BIND_POPUP = nil;
-					end;
-
-					Fatality:CreateAnimation(ToggleBindPopup,0.2,{
-						Size = UDim2.new(0, 185, 0, 0)
-					});
-
-					Fatality:CreateAnimation(PopupStroke,0.2,{
-						Transparency = 1
-					});
-
-					Fatality:CreateAnimation(PopupShadow,0.2,{
-						ImageTransparency = 1
-					});
-
-					task.delay(0.2,function()
-						if ToggleBindPopup and ToggleBindPopup.AbsoluteSize.Y <= 2 then
-							ToggleBindPopup.Visible = false;
-						end;
-					end);
-				end;
-			end;
-
-			for _,InputObject in next , {Toggle, Toggle_Name, ValueFrame, OptionButton, ToggleValueInput} do
-				InputObject.InputBegan:Connect(function(Input)
-					if Input.UserInputType == Enum.UserInputType.MouseButton2 then
-						SetPopupVisible(not ToggleBindPopup.Visible);
-					end;
-				end);
-			end;
-
-			BindFrame.InputBegan:Connect(function(Input)
-				if Input.UserInputType == Enum.UserInputType.MouseButton2 then
-					SetPopupVisible(false);
-				end;
-			end);
-
-			UserInputService.InputBegan:Connect(function(Input)
-				if not ToggleBindPopup or not ToggleBindPopup.Visible then
-					return;
-				end;
-
-				if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
-					if not Fatality:IsMouseOverFrame(ToggleBindPopup) and not Fatality:IsMouseOverFrame(Toggle) then
-						SetPopupVisible(false);
-					end;
-				end;
-			end);
+			ToggleBindPopup = Fatality:CreateKeybindPopup({
+				Window = Fatality:GetWindowFromElement(Toggle),
+				Anchor = Toggle,
+				OpenInputs = {Toggle, Toggle_Name, ValueFrame, OptionButton},
+				State = ToggleBindState,
+				GetBind = function()
+					return ToggleBind;
+				end,
+				SetBind = function(Value)
+					SetToggleBind(Value);
+				end,
+				GetMode = function()
+					return ToggleBindMode;
+				end,
+				SetMode = function(Value)
+					SetBindMode(Value);
+				end,
+			});
 		end;
 
 		local OpcToggle = function(value)
@@ -3067,11 +3370,33 @@ function Fatality:CreateElements(Parent : Frame , ZIndex : number , Event : Bind
 		end);
 
 		BuildToggleBindPopup();
+		Fatality:RegisterKeybindDisplay({
+			Frame = Toggle,
+			GetName = function()
+				return Config.Name;
+			end,
+			GetKey = function()
+				return ToggleBind;
+			end,
+			GetMode = function()
+				return ToggleBindMode;
+			end,
+			IsActive = function()
+				if ToggleBindMode == "Always" then
+					return true;
+				end;
+
+				return Config.Default == true;
+			end,
+			IsVisible = function()
+				return ToggleBindMode ~= "None" and (ToggleBind ~= nil or ToggleBindMode == "Always");
+			end,
+		});
 
 		Fatality:RegisterKeybind({
 			Frame = Toggle,
 			IsBinding = function()
-				return IsBindingToggle;
+				return ToggleBindPopup and ToggleBindPopup.IsBinding();
 			end,
 			GetValue = function()
 				if ToggleBindMode == "Always" or ToggleBindMode == "None" then
@@ -3096,8 +3421,10 @@ function Fatality:CreateElements(Parent : Frame , ZIndex : number , Event : Bind
 
 		local Respons = Fatality:CreateResponse({
 			Rename = function(new_name)
+				Config.Name = new_name;
 				Toggle_Name.Text = new_name;
 				Fatality:ProtectText(Toggle_Name,new_name);
+				Fatality:RefreshKeybindList();
 			end,
 			GetValue = function()
 				return Config.Default;
@@ -3878,51 +4205,9 @@ function Fatality:CreateElements(Parent : Frame , ZIndex : number , Event : Bind
 		Config.Name = Config.Name or "Keybind";
 		Config.Option = Config.Option or false;
 		Config.Default = Fatality:NormalizeKeybind(Config.Default);
+		Config.Mode = Fatality:NormalizeBindMode(Config.Mode or "Toggle");
+		Config.Active = Config.Active == true;
 		Config.Callback = Config.Callback or function(any) end;
-
-		local Keys = {
-			One = '1',
-			Two = '2',
-			Three = '3',
-			Four = '4',
-			Five = '5',
-			Six = '6',
-			Seven = '7',
-			Eight = '8',
-			Nine = '9',
-			Zero = '0',
-			['Minus'] = "-",
-			['Plus'] = "+",
-			BackSlash = "\\",
-			Slash = "/",
-			Period = '.',
-			Semicolon = ';',
-			Colon = ":",
-			LeftControl = "LCtrl",
-			RightControl = "RCtrl",
-			LeftShift = "LShift",
-			RightShift = "RShift",
-			Return = "Enter",
-			LeftBracket = "[",
-			RightBracket = "]",
-			Quote = "'",
-			Comma = ",",
-			Equals = "=",
-			LeftSuper = "Super",
-			RightSuper = "Super"
-		};
-
-		local GetItem = function(item)
-			if item then
-				if typeof(item) == 'EnumItem' then
-					return Keys[item.Name] or item.Name;
-				else
-					return Keys[tostring(item)] or tostring(item);
-				end;
-			else
-				return 'None';
-			end;
-		end;
 
 		local Keybind = Instance.new("Frame")
 		local Keybind_Name = Instance.new("TextLabel")
@@ -3930,6 +4215,12 @@ function Fatality:CreateElements(Parent : Frame , ZIndex : number , Event : Bind
 		local UICorner = Instance.new("UICorner")
 		local OptionButton = Instance.new("ImageButton")
 		local ValueText = Instance.new("TextLabel")
+		local PopupState = {
+			Binding = false,
+		};
+		local KeybindPopup;
+		local CurrentMode = Config.Mode;
+		local CurrentActive = Config.Active;
 
 		if SearchAPI then
 			SearchAPI.Memory(Config.Name);
@@ -3999,54 +4290,114 @@ function Fatality:CreateElements(Parent : Frame , ZIndex : number , Event : Bind
 		ValueText.Size = UDim2.new(1, 0, 1, 0)
 		ValueText.ZIndex = ZIndex + 3
 		ValueText.FontFace = Fatality.FontSemiBold
-		ValueText.Text = GetItem(Config.Default)
+		ValueText.Text = Fatality:GetKeybindName(Config.Default)
 		ValueText.TextColor3 = Color3.fromRGB(255, 255, 255)
 		ValueText.TextSize = 9.000
 		ValueText.TextStrokeTransparency = 0.850
 		ValueText.TextTransparency = 0.400
 
-		local IsBinding = false;
-		Fatality:NewInput(ValueFrame,function()
-			if IsBinding then
+		local FireCallback = function()
+			Config.Callback(Fatality:SerializeKeybind(Config.Default), CurrentActive, CurrentMode);
+		end;
+
+		local UpdateValueText = function()
+			ValueText.Text = Fatality:GetKeybindName(Config.Default);
+		end;
+
+		local SetActive;
+		local SetMode;
+
+		local SetKeybindValue = function(Value, Silent)
+			local PreviousValue = Fatality:SerializeKeybind(Config.Default);
+			Config.Default = Fatality:NormalizeKeybind(Value);
+			UpdateValueText();
+			Fatality:RefreshKeybindList();
+
+			if KeybindPopup then
+				KeybindPopup.Refresh();
+			end;
+
+			if not Silent and PreviousValue ~= Fatality:SerializeKeybind(Config.Default) then
+				FireCallback();
+			end;
+		end;
+
+		SetActive = function(Value, Silent)
+			local NextValue = Value == true;
+
+			if CurrentMode == "Always" then
+				NextValue = true;
+			elseif CurrentMode == "None" then
+				NextValue = false;
+			end;
+
+			local Changed = CurrentActive ~= NextValue;
+			CurrentActive = NextValue;
+			Fatality:RefreshKeybindList();
+
+			if not Silent and Changed then
+				FireCallback();
+			end;
+		end;
+
+		SetMode = function(Value, Silent)
+			local PreviousMode = CurrentMode;
+			CurrentMode = Fatality:NormalizeBindMode(Value);
+
+			if CurrentMode == "Always" then
+				SetActive(true, true);
+			elseif CurrentMode == "Hold" then
+				SetActive(false, true);
+			elseif CurrentMode == "None" then
+				SetActive(false, true);
+			else
+				Fatality:RefreshKeybindList();
+			end;
+
+			if KeybindPopup then
+				KeybindPopup.Refresh();
+			end;
+
+			if not Silent and PreviousMode ~= CurrentMode then
+				FireCallback();
+			end;
+		end;
+
+		local StartBinding = function()
+			if PopupState.Binding then
 				return;
 			end;
 
-			IsBinding = true;
+			PopupState.Binding = true;
 			ValueText.Text = "...";
 
-			local Selected = nil;
-			local Done = false;
-			while not Done do
-				local Key = UserInputService.InputBegan:Wait();
+			local Selected = Fatality:CaptureKeybindInput();
+			SetKeybindValue(Selected);
 
-				if Key.KeyCode == Enum.KeyCode.Escape then
-					Selected = nil;
-					Done = true;
-				elseif Key.KeyCode ~= Enum.KeyCode.Unknown then
-					Selected = Key.KeyCode;
-					Done = true;
-				else
-					if Key.UserInputType == Enum.UserInputType.MouseButton1 then
-						Selected = "MouseLeft";
-						Done = true;
-					elseif Key.UserInputType == Enum.UserInputType.MouseButton2 then
-						Selected = "MouseRight";
-						Done = true;
-					elseif Key.UserInputType == Enum.UserInputType.MouseButton3 then
-						Selected = "MouseMiddle";
-						Done = true;
-					end;
-				end;
-			end;
+			PopupState.Binding = false;
+			UpdateValueText();
+		end;
 
-			Config.Default = Fatality:NormalizeKeybind(Selected);
+		Fatality:NewInput(ValueFrame, StartBinding);
 
-			ValueText.Text = GetItem(Config.Default);
-
-			IsBinding = false;
-
-			Config.Callback(Fatality:SerializeKeybind(Config.Default));
-		end);
+		KeybindPopup = Fatality:CreateKeybindPopup({
+			Window = Fatality:GetWindowFromElement(Keybind),
+			Anchor = Keybind,
+			OpenInputs = {Keybind, Keybind_Name, ValueFrame, OptionButton},
+			State = PopupState,
+			GetBind = function()
+				return Config.Default;
+			end,
+			SetBind = function(Value)
+				SetKeybindValue(Value);
+			end,
+			GetMode = function()
+				return CurrentMode;
+			end,
+			SetMode = function(Value)
+				SetMode(Value);
+			end,
+		});
 
 		local OpcToggle = function(value)
 			if value then
@@ -4087,26 +4438,47 @@ function Fatality:CreateElements(Parent : Frame , ZIndex : number , Event : Bind
 		end;
 
 		OpcToggle(Event:GetAttribute('V'));
+		SetMode(CurrentMode, true);
+		if CurrentMode == "Always" then
+			CurrentActive = true;
+		elseif CurrentMode == "None" then
+			CurrentActive = false;
+		end;
+
+		Fatality:RegisterKeybindDisplay({
+			Frame = Keybind,
+			GetName = function()
+				return Config.Name;
+			end,
+			GetKey = function()
+				return Config.Default;
+			end,
+			GetMode = function()
+				return CurrentMode;
+			end,
+			IsActive = function()
+				return CurrentMode == "Always" or CurrentActive == true;
+			end,
+			IsVisible = function()
+				return CurrentMode ~= "None" and (Config.Default ~= nil or CurrentMode == "Always");
+			end,
+		});
+
+		Fatality:RefreshKeybindList();
 
 		local Respons = Fatality:CreateResponse({
 			Rename = function(new_name)
+				Config.Name = new_name;
 				Keybind_Name.Text = new_name
 				Fatality:ProtectText(Keybind_Name,new_name);
+				Fatality:RefreshKeybindList();
 			end,
 			GetValue = function()
 				return Fatality:SerializeKeybind(Config.Default);
 			end,
 			Signal = Event.Event:Connect(OpcToggle),
 			SetValue = function(def)
-				local NextValue = Fatality:NormalizeKeybind(def);
-				local PreviousValue = Fatality:SerializeKeybind(Config.Default);
-
-				Config.Default = NextValue;
-				ValueText.Text = GetItem(Config.Default);
-
-				if PreviousValue ~= Fatality:SerializeKeybind(Config.Default) then
-					Config.Callback(Fatality:SerializeKeybind(Config.Default));
-				end;
+				SetKeybindValue(def);
 			end,
 			Flag = Config.Flag and Config.Flag.."Keybind",
 			Option = (Config.Option and Fatality:CreateOption(OptionButton)) or nil;
@@ -4115,23 +4487,49 @@ function Fatality:CreateElements(Parent : Frame , ZIndex : number , Event : Bind
 		Fatality:RegisterKeybind({
 			Frame = Keybind,
 			IsBinding = function()
-				return IsBinding;
+				return PopupState.Binding or (KeybindPopup and KeybindPopup.IsBinding());
 			end,
 			GetValue = function()
+				if CurrentMode == "Always" or CurrentMode == "None" then
+					return nil;
+				end;
+
 				return Config.Default;
 			end,
 			Fire = function()
-				local CurrentValue = Fatality:SerializeKeybind(Config.Default);
-
-				if CurrentValue then
-					Config.Callback(CurrentValue);
+				if CurrentMode == "Toggle" then
+					SetActive(not CurrentActive);
+				elseif CurrentMode == "Hold" then
+					SetActive(true);
+				end;
+			end,
+			Release = function()
+				if CurrentMode == "Hold" then
+					SetActive(false);
 				end;
 			end
 		});
 
 		if Config.Flag then
-
 			Fatality.WindowFlags[FatalWindow][Config.Flag.."Keybind"] = Respons;
+			Fatality.WindowFlags[FatalWindow][Config.Flag.."KeybindMode"] = Fatality:CreateResponse({
+				GetValue = function()
+					return CurrentMode;
+				end,
+				SetValue = function(Value)
+					SetMode(Value);
+				end,
+				Flag = Config.Flag.."KeybindMode"
+			});
+			Fatality.WindowFlags[FatalWindow][Config.Flag.."KeybindState"] = Fatality:CreateResponse({
+				GetValue = function()
+					return CurrentActive;
+				end,
+				SetValue = function(Value)
+					SetActive(Value == true);
+				end,
+				Flag = Config.Flag.."KeybindState"
+			});
 		end;
 
 		return Respons;
@@ -4751,6 +5149,7 @@ function Fatality.new(Window: Window)
 	};
 
 	Fatal.Notifier = Fatality.__NOTIFIER_CACHE or Fatality:CreateNotifier();
+	Fatality:EnsureKeybindList();
 
 	local Fatalitywin = Instance.new("ScreenGui")
 	local FatalFrame = Instance.new("Frame")
@@ -5248,6 +5647,10 @@ function Fatality.new(Window: Window)
 
 	function Fatal:GetFlags()
 		return Fatality.WindowFlags[Fatalitywin];
+	end;
+
+	function Fatal:SetKeybindListVisible(Value: boolean)
+		Fatality:SetKeybindListVisible(Value);
 	end;
 
 	function Fatal:AddConfig()
