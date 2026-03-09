@@ -144,8 +144,28 @@ getgenv = getgenv or getfenv;
 protect_gui = protect_gui or protectgui or (syn and syn.protect_gui) or function() end;
 getgenv().LPH_NO_VIRTUALIZE = LPH_NO_VIRTUALIZE or function(f) return f end;
 
-if cloneref(game:GetService('RunService')):IsStudio() then
-	local BaseWorkspace = Instance.new('Folder',cloneref(game:GetService("ReplicatedFirst")));
+-- Services --
+local TextService = cloneref(game:GetService('TextService'));
+local TweenService = cloneref(game:GetService('TweenService'));
+local RunService = cloneref(game:GetService('RunService'));
+local Players = cloneref(game:GetService('Players'));
+local UserInputService = cloneref(game:GetService('UserInputService'));
+local Workspace = cloneref(game:GetService('Workspace'));
+local HttpService = cloneref(game:GetService('HttpService'));
+local Lighting = cloneref(game:GetService('Lighting'));
+local GuiService = cloneref(game:GetService('GuiService'));
+local Stats = cloneref(game:GetService('Stats'));
+local ReplicatedFirst = cloneref(game:GetService('ReplicatedFirst'));
+local Debris = cloneref(game:GetService('Debris'));
+local SoundService = cloneref(game:GetService('SoundService'));
+local StarterGui = cloneref(game:GetService('StarterGui'));
+local ReplicatedStorage = cloneref(game:GetService('ReplicatedStorage'));
+local Client = Players.LocalPlayer;
+local Mouse = Client:GetMouse();
+local CurrentCamera = Workspace.CurrentCamera;
+
+if RunService:IsStudio() then
+	local BaseWorkspace = Instance.new('Folder', ReplicatedFirst);
 
 	BaseWorkspace.Name = "WORKSPACE";
 
@@ -263,19 +283,6 @@ if cloneref(game:GetService('RunService')):IsStudio() then
 		end;
 	end;
 end;
-
--- Services --
-local TextService = cloneref(game:GetService('TextService'));
-local TweenService = cloneref(game:GetService('TweenService'));
-local RunService = cloneref(game:GetService('RunService'));
-local Players = cloneref(game:GetService('Players'));
-local UserInputService = cloneref(game:GetService('UserInputService'));
-local Workspace = cloneref(game:GetService('Workspace'));
-local HttpService = cloneref(game:GetService('HttpService'));
-local Lighting = cloneref(game:GetService('Lighting'));
-local Client = Players.LocalPlayer;
-local Mouse = Client:GetMouse();
-local CurrentCamera = Workspace.CurrentCamera;
 
 local function ResolveGuiParent()
 	if type(gethui) ~= "function" then
