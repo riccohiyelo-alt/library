@@ -1,3 +1,12 @@
+--[[
+    		Fatality-Dark Interface
+
+    Author: 4lpaca
+    License: MIT
+    Github: https://github.com/4lpaca-pin/Fatality
+--]]
+
+-- Export Types --
 export type Window = {
 	Name: string,
 	Keybind: string | Enum.KeyCode,
@@ -2865,17 +2874,25 @@ function Fatality:CreateElements(Parent : Frame , ZIndex : number , Event : Bind
 				BindText.Text = "...";
 
 				local Selected = nil;
-				while not Selected do
+				local Done = false;
+				while not Done do
 					local Input = UserInputService.InputBegan:Wait();
 
-					if Input.KeyCode ~= Enum.KeyCode.Unknown then
+					if Input.KeyCode == Enum.KeyCode.Escape then
+						Selected = nil;
+						Done = true;
+					elseif Input.KeyCode ~= Enum.KeyCode.Unknown then
 						Selected = Input.KeyCode;
+						Done = true;
 					elseif Input.UserInputType == Enum.UserInputType.MouseButton1 then
 						Selected = "MouseLeft";
+						Done = true;
 					elseif Input.UserInputType == Enum.UserInputType.MouseButton2 then
 						Selected = "MouseRight";
+						Done = true;
 					elseif Input.UserInputType == Enum.UserInputType.MouseButton3 then
 						Selected = "MouseMiddle";
+						Done = true;
 					end;
 				end;
 
@@ -4008,18 +4025,26 @@ function Fatality:CreateElements(Parent : Frame , ZIndex : number , Event : Bind
 			ValueText.Text = "...";
 
 			local Selected = nil;
-			while not Selected do
+			local Done = false;
+			while not Done do
 				local Key = UserInputService.InputBegan:Wait();
 
-				if Key.KeyCode ~= Enum.KeyCode.Unknown then
+				if Key.KeyCode == Enum.KeyCode.Escape then
+					Selected = nil;
+					Done = true;
+				elseif Key.KeyCode ~= Enum.KeyCode.Unknown then
 					Selected = Key.KeyCode;
+					Done = true;
 				else
 					if Key.UserInputType == Enum.UserInputType.MouseButton1 then
 						Selected = "MouseLeft";
+						Done = true;
 					elseif Key.UserInputType == Enum.UserInputType.MouseButton2 then
 						Selected = "MouseRight";
+						Done = true;
 					elseif Key.UserInputType == Enum.UserInputType.MouseButton3 then
 						Selected = "MouseMiddle";
+						Done = true;
 					end;
 				end;
 			end;
