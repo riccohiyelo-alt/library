@@ -1,12 +1,3 @@
---[[
-    		Fatality-Dark Interface
-
-    Author: 4lpaca
-    License: MIT
-    Github: https://github.com/4lpaca-pin/Fatality
---]]
-
--- Export Types --
 export type Window = {
 	Name: string,
 	Keybind: string | Enum.KeyCode,
@@ -1397,7 +1388,9 @@ end;
 function Fatality:NormalizeBindMode(Value): string
 	local Mode = string.lower(tostring(Value or "Always"));
 
-	if Mode == "hold" then
+	if Mode == "none" then
+		return "None";
+	elseif Mode == "hold" then
 		return "Hold";
 	elseif Mode == "toggle" then
 		return "Toggle";
@@ -2822,6 +2815,7 @@ function Fatality:CreateElements(Parent : Frame , ZIndex : number , Event : Bind
 			ModeLayout.SortOrder = Enum.SortOrder.LayoutOrder;
 
 			for _,ModeData in next , {
+				{Value = "None", Label = "None"},
 				{Value = "Hold", Label = "Hold"},
 				{Value = "Toggle", Label = "Toggle"},
 				{Value = "Always", Label = "Allways"},
@@ -3073,7 +3067,7 @@ function Fatality:CreateElements(Parent : Frame , ZIndex : number , Event : Bind
 				return IsBindingToggle;
 			end,
 			GetValue = function()
-				if ToggleBindMode == "Always" then
+				if ToggleBindMode == "Always" or ToggleBindMode == "None" then
 					return nil;
 				end;
 
