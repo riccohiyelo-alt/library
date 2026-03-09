@@ -174,6 +174,7 @@ Fatality.KeybindListGui = nil;
 Fatality.KeybindListFrame = nil;
 Fatality.KeybindListHolder = nil;
 Fatality.KeybindListEnabled = true;
+Fatality.DisplayOrders = 0;
 Fatality.FontSemiBold = Font.new('rbxasset://fonts/families/GothamSSm.json',Enum.FontWeight.SemiBold,Enum.FontStyle.Normal);
 Fatality.Flags = {};
 Fatality.Colors = {
@@ -1124,6 +1125,12 @@ function Fatality:Drag(InputFrame: Frame, MoveFrame: Frame, Speed : number)
 			dragToggle = true
 			dragStart = input.Position
 			startPos = MoveFrame.Position
+
+			if MoveFrame.Parent and MoveFrame.Parent:IsA("ScreenGui") and MoveFrame.Parent.DisplayOrder ~= 999999 then
+				Fatality.DisplayOrders += 1;
+				MoveFrame.Parent.DisplayOrder = Fatality.DisplayOrders;
+			end;
+
 			input.Changed:Connect(function()
 				if input.UserInputState == Enum.UserInputState.End then
 					dragToggle = false
@@ -1143,6 +1150,56 @@ function Fatality:Drag(InputFrame: Frame, MoveFrame: Frame, Speed : number)
 			end
 		end
 	end);
+end;
+
+function Fatality:MakeResizable(Frame: GuiObject)
+	local Handle = Instance.new("TextButton");
+	local Resizing = false;
+	local StartInput = nil;
+	local StartSize = nil;
+	local OriginalSize = Frame.Size;
+
+	Handle.Name = Fatality:RandomString();
+	Handle.Parent = Frame;
+	Handle.Position = UDim2.new(1, -10, 1, -10);
+	Handle.Size = UDim2.new(0, 10, 0, 10);
+	Handle.BackgroundTransparency = 1;
+	Handle.BorderSizePixel = 0;
+	Handle.Text = "";
+	Handle.ZIndex = Frame.ZIndex + 50;
+
+	Handle.InputBegan:Connect(function(Input)
+		if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+			Resizing = true;
+			StartInput = Input.Position;
+			StartSize = Frame.Size;
+		end;
+	end);
+
+	Handle.InputEnded:Connect(function(Input)
+		if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+			Resizing = false;
+		end;
+	end);
+
+	UserInputService.InputChanged:Connect(function(Input)
+		if not Resizing or Input.UserInputType ~= Enum.UserInputType.MouseMovement then
+			return;
+		end;
+
+		local ViewportX = CurrentCamera.ViewportSize.X;
+		local ViewportY = CurrentCamera.ViewportSize.Y;
+		local Delta = Input.Position - StartInput;
+
+		Frame.Size = UDim2.new(
+			StartSize.X.Scale,
+			math.clamp(StartSize.X.Offset + Delta.X, OriginalSize.X.Offset, ViewportX),
+			StartSize.Y.Scale,
+			math.clamp(StartSize.Y.Offset + Delta.Y, OriginalSize.Y.Offset, ViewportY)
+		);
+	end);
+
+	return Handle;
 end;
 
 function Fatality:ScrollSignal(Scroll: ScrollingFrame,UIListLayout: UIListLayout,Type:string)
@@ -1375,6 +1432,7 @@ function Fatality:EnsureKeybindList()
 	ScreenGui.Name = Fatality:RandomString();
 	ScreenGui.Parent = gethui();
 	ScreenGui.ResetOnSpawn = false;
+	ScreenGui.DisplayOrder = 999999;
 	ScreenGui.IgnoreGuiInset = true;
 	ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
 
@@ -1489,6 +1547,7 @@ function Fatality:EnsureKeybindList()
 	HolderPadding.PaddingTop = UDim.new(0, 2);
 
 	Fatality:Drag(Outline, Outline, 0.1);
+	Fatality:MakeResizable(Outline);
 
 	Fatality.KeybindListGui = ScreenGui;
 	Fatality.KeybindListFrame = Outline;
@@ -2288,18 +2347,19 @@ function Fatality:CreateColorPicker(ColorBox: Frame,Transparency, Callback)
 		end;
 	end;
 
-	ColorPickerFrame.Active = true;
-	ColorPickerFrame.Name = Fatality:RandomString()
-	ColorPickerFrame.Parent = OwnWindow
+		ColorPickerFrame.Active = true;
+		ColorPickerFrame.Name = Fatality:RandomString()
+		ColorPickerFrame.Parent = OwnWindow
 	ColorPickerFrame.AnchorPoint = Vector2.new(0.5, 0)
 	ColorPickerFrame.BackgroundColor3 = Color3.fromRGB(19, 19, 19)
 	ColorPickerFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
 	ColorPickerFrame.BorderSizePixel = 0
 	ColorPickerFrame.ClipsDescendants = true
 	ColorPickerFrame.Position = UDim2.new(4,0,4,0)
-	ColorPickerFrame.Size = UDim2.new(0, 175, 0, 195)
-	ColorPickerFrame.ZIndex = 200
-	Fatality:AddDragBlacklist(ColorPickerFrame);
+		ColorPickerFrame.Size = UDim2.new(0, 175, 0, 195)
+		ColorPickerFrame.ZIndex = 200
+		Fatality:AddDragBlacklist(ColorPickerFrame);
+		Fatality:MakeResizable(ColorPickerFrame);
 
 	UICorner.CornerRadius = UDim.new(0, 2)
 	UICorner.Parent = ColorPickerFrame
@@ -5469,6 +5529,7 @@ function Fatality.new(Window: Window)
 	UICorner_6.Parent = HeaderLineShadow_2
 
 	Fatality:Drag(FatalFrame,FatalFrame,0.1);
+	Fatality:MakeResizable(FatalFrame);
 
 	UserInputService.InputBegan:Connect(function(input,istyping)
 		if not istyping then
@@ -7214,6 +7275,7 @@ function Fatality:Loader(Config: Loader)
 
 	Loader.Name = Fatality:RandomString()
 	Loader.Parent = gethui()
+	Loader.DisplayOrder = 999999
 	Loader.IgnoreGuiInset = true
 	Loader.ZIndexBehavior = Enum.ZIndexBehavior.Global
 
@@ -7429,6 +7491,7 @@ function Fatality:CreateNotifier(): Notifier
 	Notify.Name = Fatality:RandomString();
 	Notify.Parent = gethui()
 	Notify.ResetOnSpawn = false
+	Notify.DisplayOrder = 999999
 	Notify.ZIndexBehavior = Enum.ZIndexBehavior.Global
 	Notify.IgnoreGuiInset = true;
 
