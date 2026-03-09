@@ -160,14 +160,6 @@ local Client = Players.LocalPlayer;
 local Mouse = Client:GetMouse();
 local CurrentCamera = Workspace.CurrentCamera;
 
-local function ResolveGuiParent()
-	if type(gethui) ~= "function" then
-		return nil;
-	end;
-
-	return gethui();
-end;
-
 -- Fatality --
 local Fatality = {};
 
@@ -1361,11 +1353,6 @@ function Fatality:EnsureKeybindList()
 		return Fatality.KeybindListFrame;
 	end;
 
-	local GuiParent = ResolveGuiParent();
-	if not GuiParent then
-		return nil;
-	end;
-
 	local ScreenGui = Instance.new("ScreenGui");
 	local Outline = Instance.new("Frame");
 	local Inline = Instance.new("Frame");
@@ -1386,7 +1373,7 @@ function Fatality:EnsureKeybindList()
 	local Shadow = Instance.new("ImageLabel");
 
 	ScreenGui.Name = Fatality:RandomString();
-	ScreenGui.Parent = GuiParent;
+	ScreenGui.Parent = gethui();
 	ScreenGui.ResetOnSpawn = false;
 	ScreenGui.IgnoreGuiInset = true;
 	ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
@@ -5245,10 +5232,7 @@ function Fatality.new(Window: Window)
 	end
 
 	Fatalitywin.Name = Fatality:RandomString();
-	local GuiParent = ResolveGuiParent();
-	if GuiParent then
-		Fatalitywin.Parent = GuiParent;
-	end;
+	Fatalitywin.Parent = gethui();
 	Fatalitywin.ResetOnSpawn = false;
 	Fatalitywin.IgnoreGuiInset = true;
 	Fatalitywin.ZIndexBehavior = Enum.ZIndexBehavior.Global;
@@ -7227,14 +7211,9 @@ function Fatality:Loader(Config: Loader)
 	local texts = Instance.new("Frame")
 	local UIListLayout = Instance.new("UIListLayout")
 	local BlackFrame = Instance.new("Frame")
-	local GuiParent = ResolveGuiParent();
-
-	if not GuiParent then
-		return;
-	end;
 
 	Loader.Name = Fatality:RandomString()
-	Loader.Parent = GuiParent
+	Loader.Parent = gethui()
 	Loader.IgnoreGuiInset = true
 	Loader.ZIndexBehavior = Enum.ZIndexBehavior.Global
 
@@ -7443,24 +7422,12 @@ end;
 function Fatality:CreateNotifier(): Notifier
 	if Fatality.__NOTIFIER_CACHE then return Fatality.__NOTIFIER_CACHE; end;
 
-	local GuiParent = ResolveGuiParent();
-	if not GuiParent then
-		local noopNotifier = Fatality:CreateResponse({
-			Notify = function()
-				return;
-			end
-		});
-
-		Fatality.__NOTIFIER_CACHE = noopNotifier;
-		return noopNotifier;
-	end;
-
 	local Notify = Instance.new("ScreenGui")
 	local layout = Instance.new("Frame")
 	local UIListLayout = Instance.new("UIListLayout")
 
 	Notify.Name = Fatality:RandomString();
-	Notify.Parent = GuiParent
+	Notify.Parent = gethui()
 	Notify.ResetOnSpawn = false
 	Notify.ZIndexBehavior = Enum.ZIndexBehavior.Global
 	Notify.IgnoreGuiInset = true;
