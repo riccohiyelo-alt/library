@@ -1025,7 +1025,7 @@ function Fatality:IsMobile() : boolean
 end;
 
 function Fatality:RandomString() : string
-	return string.char(math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102),math.random(64,102));	
+	return "";	
 end;
 
 function Fatality:GetTextSize(Text : TextLabel,CustomFont: Enum.Font) : Vector2
@@ -2785,16 +2785,8 @@ function Fatality:AddDragBlacklist(Frame: Frame)
 end;
 
 function Fatality:ProtectText(Label: TextLabel,Text: string)
-	Label.RichText = true;
-
-	local MainText = string.gsub(Text,'.',function(t)
-		if not string.find(t,"[<>()\"']") then
-			return string.format('<font %s="%s">%s</font>',Fatality:RandomStr(5),Fatality:RandomStr(5),t)
-		end;
-		return t;
-	end);
-
-	Label.Text = MainText;
+	Label.RichText = false;
+	Label.Text = Text;
 end;
 
 function Fatality:CreateDropdown(Parent: Frame, Default: string | {[string]: boolean}, Multiplier: boolean, AutoUpdate: boolean,Callback: (data: any) -> any)
@@ -5422,7 +5414,7 @@ function Fatality.new(Window: Window)
 	UserIcon.Size = UDim2.new(0.800000012, 0, 0.800000012, 0)
 	UserIcon.SizeConstraint = Enum.SizeConstraint.RelativeYY
 	UserIcon.ZIndex = 5
-	UserIcon.Image = Players:GetUserThumbnailAsync(Client.UserId,Enum.ThumbnailType.HeadShot,Enum.ThumbnailSize.Size180x180);
+	UserIcon.Image = "";
 
 	UICorner_3.CornerRadius = UDim.new(1, 0)
 	UICorner_3.Parent = UserIcon
@@ -5546,7 +5538,7 @@ function Fatality.new(Window: Window)
 	end;
 
 	function Fatal:SetProfile(icon: string)
-		UserIcon.Image = icon or Players:GetUserThumbnailAsync(Client.UserId,Enum.ThumbnailType.HeadShot,Enum.ThumbnailSize.Size180x180);
+		UserIcon.Image = icon or "";
 	end;
 
 	function Fatal:SetExpire(str: string)
