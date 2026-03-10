@@ -1,3 +1,12 @@
+--[[
+    		Fatality-Dark Interface
+
+    Author: 4lpaca
+    License: MIT
+    Github: https://github.com/4lpaca-pin/Fatality
+--]]
+
+-- Export Types --
 export type Window = {
 	Name: string,
 	Keybind: string | Enum.KeyCode,
@@ -1013,10 +1022,6 @@ Fatality.WindowFlags = {};
 
 function Fatality:IsMobile() : boolean
 	return UserInputService.TouchEnabled;	
-end;
-
-function "" : string
-	return "\0";
 end;
 
 function Fatality:GetTextSize(Text : TextLabel,CustomFont: Enum.Font) : Vector2
