@@ -169,11 +169,6 @@ Fatality.Windows = {};
 Fatality.Keybinds = {};
 Fatality.KeybindConnection = nil;
 Fatality.KeybindReleaseConnection = nil;
-Fatality.KeybindDisplayEntries = {};
-Fatality.KeybindListGui = nil;
-Fatality.KeybindListFrame = nil;
-Fatality.KeybindListHolder = nil;
-Fatality.KeybindListEnabled = true;
 Fatality.DisplayOrders = 0;
 Fatality.FontSemiBold = Font.new('rbxasset://fonts/families/GothamSSm.json',Enum.FontWeight.SemiBold,Enum.FontStyle.Normal);
 Fatality.Flags = {};
@@ -1398,242 +1393,23 @@ function Fatality:CaptureKeybindInput()
 end;
 
 function Fatality:FormatKeybindListText(Name: string, Mode, Key): string
-	return string.format("[ %s ] %s - %s", Fatality:NormalizeBindMode(Mode), tostring(Name or "Keybind"), Fatality:GetKeybindName(Key));
+	return "";
 end;
 
 function Fatality:EnsureKeybindList()
-	if Fatality.KeybindListFrame and Fatality.KeybindListFrame.Parent then
-		return Fatality.KeybindListFrame;
-	end;
-
-	local ScreenGui = Instance.new("ScreenGui");
-	local Outline = Instance.new("Frame");
-	local Inline = Instance.new("Frame");
-	local Background = Instance.new("Frame");
-	local Header = Instance.new("TextLabel");
-	local HeaderAccent = Instance.new("Frame");
-	local HolderOutline = Instance.new("Frame");
-	local HolderInline = Instance.new("Frame");
-	local HolderBackground = Instance.new("Frame");
-	local HolderLayout = Instance.new("UIListLayout");
-	local HolderPadding = Instance.new("UIPadding");
-	local OutlineCorner = Instance.new("UICorner");
-	local InlineCorner = Instance.new("UICorner");
-	local BackgroundCorner = Instance.new("UICorner");
-	local HolderOutlineCorner = Instance.new("UICorner");
-	local HolderInlineCorner = Instance.new("UICorner");
-	local HolderBackgroundCorner = Instance.new("UICorner");
-	local Shadow = Instance.new("ImageLabel");
-
-	ScreenGui.Name = "";
-	ScreenGui.Parent = gethui();
-	
-
-
-	Outline.Name = "";
-	Outline.Parent = ScreenGui;
-	Outline.Active = false;
-	Outline.BackgroundColor3 = Color3.fromRGB(29, 29, 29);
-	Outline.BorderSizePixel = 0;
-	Outline.Position = UDim2.fromOffset(50, 200);
-	Outline.Size = UDim2.new(0, 190, 0, 28);
-	Outline.Visible = false;
-	Outline.ZIndex = 300;
-
-	OutlineCorner.CornerRadius = UDim.new(0, 4);
-	OutlineCorner.Parent = Outline;
-
-	Inline.Name = "";
-	Inline.Parent = Outline;
-	Inline.BackgroundColor3 = Fatality.Colors.Black;
-	Inline.BorderSizePixel = 0;
-	Inline.Position = UDim2.new(0, 1, 0, 1);
-	Inline.Size = UDim2.new(1, -2, 1, -2);
-	Inline.ZIndex = 301;
-
-	InlineCorner.CornerRadius = UDim.new(0, 4);
-	InlineCorner.Parent = Inline;
-
-	Background.Name = "";
-	Background.Parent = Inline;
-	Background.BackgroundColor3 = Color3.fromRGB(24, 24, 24);
-	Background.BorderSizePixel = 0;
-	Background.Position = UDim2.new(0, 1, 0, 1);
-	Background.Size = UDim2.new(1, -2, 1, -2);
-	Background.ZIndex = 302;
-
-	BackgroundCorner.CornerRadius = UDim.new(0, 4);
-	BackgroundCorner.Parent = Background;
-
-	Shadow.Name = "";
-	Shadow.Parent = Outline;
-	Shadow.AnchorPoint = Vector2.new(0.5, 0.5);
-	Shadow.BackgroundTransparency = 1;
-	Shadow.BorderSizePixel = 0;
-	Shadow.Position = UDim2.new(0.5, 0, 0.5, 0);
-	Shadow.Size = UDim2.new(1, 47, 1, 47);
-	Shadow.ZIndex = 299;
-	Shadow.Image = "rbxassetid://6014261993";
-	Shadow.ImageColor3 = Color3.fromRGB(0, 0, 0);
-	Shadow.ImageTransparency = 0.75;
-	Shadow.ScaleType = Enum.ScaleType.Slice;
-	Shadow.SliceCenter = Rect.new(49, 49, 450, 450);
-
-	HeaderAccent.Name = "";
-	HeaderAccent.Parent = Background;
-	HeaderAccent.BackgroundColor3 = Fatality.Colors.Accent;
-	HeaderAccent.BorderSizePixel = 0;
-	HeaderAccent.Size = UDim2.new(1, 0, 0, 2);
-	HeaderAccent.ZIndex = 303;
-
-	Header.Name = "";
-	Header.Parent = Background;
-	Header.BackgroundTransparency = 1;
-	Header.Size = UDim2.new(1, 0, 0, 22);
-	Header.ZIndex = 303;
-	Header.FontFace = Fatality.FontSemiBold;
-	Header.Text = "Keybinds";
-	Header.TextColor3 = Color3.fromRGB(255, 255, 255);
-	Header.TextSize = 12;
-	Header.TextTransparency = 0.2;
-
-	HolderOutline.Name = "";
-	HolderOutline.Parent = Background;
-	HolderOutline.BackgroundColor3 = Color3.fromRGB(29, 29, 29);
-	HolderOutline.BorderSizePixel = 0;
-	HolderOutline.Position = UDim2.new(0, 4, 0, 24);
-	HolderOutline.Size = UDim2.new(1, -8, 0, 0);
-	HolderOutline.ZIndex = 303;
-
-	HolderOutlineCorner.CornerRadius = UDim.new(0, 3);
-	HolderOutlineCorner.Parent = HolderOutline;
-
-	HolderInline.Name = "";
-	HolderInline.Parent = HolderOutline;
-	HolderInline.BackgroundColor3 = Fatality.Colors.Black;
-	HolderInline.BorderSizePixel = 0;
-	HolderInline.Position = UDim2.new(0, 1, 0, 1);
-	HolderInline.Size = UDim2.new(1, -2, 1, -2);
-	HolderInline.ZIndex = 304;
-
-	HolderInlineCorner.CornerRadius = UDim.new(0, 3);
-	HolderInlineCorner.Parent = HolderInline;
-
-	HolderBackground.Name = "";
-	HolderBackground.Parent = HolderInline;
-	HolderBackground.BackgroundColor3 = Color3.fromRGB(24, 24, 24);
-	HolderBackground.BorderSizePixel = 0;
-	HolderBackground.Position = UDim2.new(0, 1, 0, 1);
-	HolderBackground.Size = UDim2.new(1, -2, 1, -2);
-	HolderBackground.ZIndex = 305;
-
-	HolderBackgroundCorner.CornerRadius = UDim.new(0, 3);
-	HolderBackgroundCorner.Parent = HolderBackground;
-
-	HolderLayout.Parent = HolderBackground;
-	HolderLayout.Padding = UDim.new(0, 0);
-	HolderLayout.SortOrder = Enum.SortOrder.LayoutOrder;
-
-	HolderPadding.Parent = HolderBackground;
-	HolderPadding.PaddingBottom = UDim.new(0, 4);
-	HolderPadding.PaddingLeft = UDim.new(0, 5);
-	HolderPadding.PaddingRight = UDim.new(0, 5);
-	HolderPadding.PaddingTop = UDim.new(0, 2);
-
-	Fatality:Drag(Outline, Outline, 0.1);
-	Fatality:MakeResizable(Outline);
-
-	Fatality.KeybindListGui = ScreenGui;
-	Fatality.KeybindListFrame = Outline;
-	Fatality.KeybindListHolder = HolderBackground;
-
-	return Outline;
+	return nil;
 end;
 
 function Fatality:RefreshKeybindList()
-	local Outline = Fatality:EnsureKeybindList();
-	local Holder = Fatality.KeybindListHolder;
-	if not Outline or not Holder then
-		return;
-	end;
-
-	local VisibleCount = 0;
-
-	for Index = #Fatality.KeybindDisplayEntries, 1, -1 do
-		local Entry = Fatality.KeybindDisplayEntries[Index];
-		local IsDead = (not Entry)
-			or (type(Entry.IsAlive) == "function" and not Entry:IsAlive())
-			or (Entry.Frame and Entry.Frame.Parent == nil);
-
-		if IsDead then
-			if Entry and Entry.Row then
-				Entry.Row:Destroy();
-			end;
-
-			table.remove(Fatality.KeybindDisplayEntries, Index);
-		else
-			if not Entry.Row then
-				local Row = Instance.new("TextLabel");
-				local Stroke = Instance.new("UIStroke");
-
-				Row.Name = "";
-				Row.Parent = Holder;
-				Row.BackgroundTransparency = 1;
-				Row.Size = UDim2.new(1, 0, 0, 17);
-				Row.ZIndex = 306;
-				Row.FontFace = Fatality.FontSemiBold;
-				Row.TextColor3 = Color3.fromRGB(255, 255, 255);
-				Row.TextSize = 12;
-				Row.TextTransparency = 0.15;
-				Row.TextStrokeTransparency = 0.9;
-				Row.TextXAlignment = Enum.TextXAlignment.Left;
-				Row.TextTruncate = Enum.TextTruncate.AtEnd;
-				Row.Visible = false;
-
-				Stroke.Parent = Row;
-				Stroke.Transparency = 0.75;
-				Stroke.Thickness = 1;
-
-				Entry.Row = Row;
-			end;
-
-			local Mode = type(Entry.GetMode) == "function" and Entry:GetMode() or "Toggle";
-			local Key = type(Entry.GetKey) == "function" and Entry:GetKey() or nil;
-			local Active = type(Entry.IsActive) == "function" and Entry:IsActive() or false;
-			local Visible = Active and Fatality:NormalizeBindMode(Mode) ~= "None";
-
-			if Visible and type(Entry.IsVisible) == "function" then
-				Visible = Entry:IsVisible();
-			end;
-
-			if Visible then
-				Entry.Row.Visible = Fatality.KeybindListEnabled;
-				Entry.Row.Text = Fatality:FormatKeybindListText((type(Entry.GetName) == "function" and Entry:GetName()) or Entry.Name, Mode, Key);
-				VisibleCount = VisibleCount + 1;
-			else
-				Entry.Row.Visible = false;
-				Entry.Row.Text = "";
-			end;
-		end;
-	end;
-
-	local ContentHeight = (VisibleCount > 0 and (VisibleCount * 17) + 6) or 0;
-	Holder.Parent.Parent.Size = UDim2.new(1, -8, 0, ContentHeight + 4);
-	Holder.Parent.Size = UDim2.new(1, -2, 0, ContentHeight + 2);
-	Holder.Size = UDim2.new(1, -2, 0, ContentHeight);
-	Outline.Size = UDim2.new(0, 190, 0, 28 + ContentHeight);
-	Outline.Visible = Fatality.KeybindListEnabled and VisibleCount > 0;
+	return;
 end;
 
 function Fatality:RegisterKeybindDisplay(Entry)
-	table.insert(Fatality.KeybindDisplayEntries, Entry);
-	Fatality:RefreshKeybindList();
 	return Entry;
 end;
 
 function Fatality:SetKeybindListVisible(Value)
-	Fatality.KeybindListEnabled = (Value ~= false);
-	Fatality:RefreshKeybindList();
+	return;
 end;
 
 function Fatality:CreateKeybindPopup(Config)
@@ -5049,7 +4825,6 @@ function Fatality.new(Window: Window)
 	};
 
 	Fatal.Notifier = Fatality.__NOTIFIER_CACHE or Fatality:CreateNotifier();
-	Fatality:EnsureKeybindList();
 
 	local Fatalitywin = Instance.new("ScreenGui")
 	local FatalFrame = Instance.new("Frame")
