@@ -1423,7 +1423,7 @@ function Fatality:EnsureKeybindList()
 	ScreenGui.Name = "";
 	ScreenGui.Parent = gethui();
 	
-		ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
 
 	Outline.Name = "";
 	Outline.Parent = ScreenGui;
@@ -5274,7 +5274,7 @@ function Fatality.new(Window: Window)
 
 	Fatalitywin.Name = "";
 	Fatalitywin.Parent = gethui();
-		Fatalitywin.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
 
 	table.insert(Fatality.Windows,Fatalitywin)
 
@@ -7255,7 +7255,7 @@ function Fatality:Loader(Config: Loader)
 	Loader.Name = ""
 	Loader.Parent = gethui()
 	
-		Loader.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
 
 	center.Name = ""
 	center.Parent = Loader
@@ -7469,7 +7469,7 @@ function Fatality:CreateNotifier(): Notifier
 	Notify.Name = "";
 	Notify.Parent = gethui()
 	
-	Notify.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
 	
 	layout.Name = "";
 	layout.Parent = Notify
