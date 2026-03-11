@@ -1475,7 +1475,8 @@ rebuildSearchResults = function(query)
     end
 
     SearchEmpty.Visible = resultCount == 0
-    SearchResults.CanvasSize = UDim2.fromOffset(0, SearchResultsLayout.AbsoluteContentSize.Y)
+    local layout = SearchResults:FindFirstChildOfClass("UIListLayout")
+    SearchResults.CanvasSize = UDim2.fromOffset(0, layout and layout.AbsoluteContentSize.Y or 0)
 end
 
 createQuickAction("Reset window size", function()
@@ -3614,23 +3615,24 @@ function Library.new(config)
     MenuToggleBind = config.MenuBind or config.Keybind or Enum.KeyCode.Insert
     TitleRight.Text = "menu bind: " .. bindToText(MenuToggleBind)
 
-    if Intro and Intro.Parent then
-        Intro:Destroy()
-    end
-    if Blur and Blur.Parent then
-        Blur:Destroy()
-    end
-
-    IntroDone = true
+    IntroDone = false
     MenuVisible = true
-    Window.Visible = true
-    Window.BackgroundTransparency = 0
+    Window.Visible = false
+    Window.BackgroundTransparency = 1
     Window.Position = UDim2.new(0.5, -96, 0.5, -16)
 
     refreshTheme()
     rebuildSearchResults("")
     refreshRows()
     updateWatermark()
+
+    if config.Intro == false or not (Intro and Intro.Parent and Blur and Blur.Parent) then
+        IntroDone = true
+        Window.Visible = true
+        Window.BackgroundTransparency = 0
+    else
+        task.spawn(playIntro)
+    end
 
     return setmetatable({}, WindowMethods)
 end
@@ -3684,6 +3686,7 @@ local UI = loadstring(game:HttpGet("your raw github link"))()
 local Window = UI.new({
     Name = "NeverPaste",
     MenuBind = Enum.KeyCode.Insert,
+    -- Intro = false,
 })
 
 local Combat = Window:AddMenu({ Name = "Combat", Icon = "target" })
