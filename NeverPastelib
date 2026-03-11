@@ -70,9 +70,9 @@ local Theme = {
     inline = Color3.fromRGB(28, 31, 48),
     high = Color3.fromRGB(46, 49, 73),
     low = Color3.fromRGB(34, 36, 54),
-    section = Color3.fromRGB(92, 82, 136),
-    sectionHigh = Color3.fromRGB(112, 101, 162),
-    sectionLow = Color3.fromRGB(74, 66, 116),
+    section = Color3.fromRGB(66, 58, 102),
+    sectionHigh = Color3.fromRGB(82, 72, 124),
+    sectionLow = Color3.fromRGB(52, 45, 84),
     accent = Color3.fromRGB(96, 118, 214),
     text = Color3.fromRGB(226, 229, 242),
     textDim = Color3.fromRGB(158, 162, 182),
@@ -3070,7 +3070,7 @@ getSection = function(tabId, columnIndex, name)
         BackgroundColor3 = Theme.section,
         Position = UDim2.fromOffset(1, 1),
         Size = UDim2.new(1, -2, 1, -2),
-        BackgroundTransparency = 0.52,
+        BackgroundTransparency = 0.62,
         ZIndex = 19,
     })
     registerTheme("section", sectionTint, "BackgroundColor3")
