@@ -537,11 +537,14 @@ local IntroDone = false
 local BindPopupEntry = nil
 local BindPopupCurrent = nil
 local BindPopupListening = false
-local ActiveMenuTween = nil
+local ActiveMenuTweens = {}
+local ActiveMenuTweenConnections = {}
 local ActiveHoldEntries = {}
 local LastWatermarkTextUpdate = 0
 local WatermarkWidth = 140
 local WindowMinSize = Vector2.new(600, 430)
+local DefaultWindowPosition = UDim2.new(0.5, -96, 0.5, -16)
+local MenuHiddenOffset = Vector2.fromOffset(0, 12)
 local SearchOpen = false
 local InfoOpen = false
 local SettingsOpen = false
@@ -570,9 +573,16 @@ local SettingsPanel = {
 local WindowShell = addShell(ScreenGui, UDim2.fromOffset(658, 476), UDim2.fromOffset(0, 0), true, 0, 10)
 local Window = WindowShell.outline
 Window.AnchorPoint = Vector2.new(0.5, 0.5)
-Window.Position = UDim2.new(0.5, -96, 0.5, -16)
+Window.Position = DefaultWindowPosition
 Window.Visible = false
 Window.BackgroundTransparency = 1
+
+local WindowScale = create("UIScale", {
+    Parent = Window,
+    Scale = 1,
+})
+
+local WindowRestPosition = DefaultWindowPosition
 
 local ResizeHandle = create("TextButton", {
     Parent = Window,
@@ -1980,6 +1990,36 @@ local function setGuiPosition(guiObject, anchoredPosition)
     guiObject.Position = UDim2.fromOffset(anchoredPosition.X, anchoredPosition.Y)
 end
 
+local function updateWindowRestPosition(position)
+    WindowRestPosition = position or Window.Position
+end
+
+local function getMenuHiddenPosition()
+    local rest = WindowRestPosition or Window.Position
+    return UDim2.new(
+        rest.X.Scale,
+        rest.X.Offset + MenuHiddenOffset.X,
+        rest.Y.Scale,
+        rest.Y.Offset + MenuHiddenOffset.Y
+    )
+end
+
+local function trackMenuTween(tweenObject)
+    if tweenObject then
+        ActiveMenuTweens[#ActiveMenuTweens + 1] = tweenObject
+    end
+
+    return tweenObject
+end
+
+local function trackMenuConnection(connection)
+    if connection then
+        ActiveMenuTweenConnections[#ActiveMenuTweenConnections + 1] = connection
+    end
+
+    return connection
+end
+
 local function makeDraggable(handle, target)
     local dragging = false
     local dragInput
@@ -2034,6 +2074,10 @@ local function makeDraggable(handle, target)
             dragStartPosition.Y.Scale,
             dragStartPosition.Y.Offset + clampedDelta.Y
         )
+
+        if target == Window then
+            updateWindowRestPosition(target.Position)
+        end
     end)
 end
 
@@ -2099,6 +2143,10 @@ local function makeResizable(handle, target, minimumSize)
             resizeStartPosition.Y.Scale,
             resizeStartPosition.Y.Offset + ((nextHeight - resizeStartSize.Y) * target.AnchorPoint.Y)
         )
+
+        if target == Window then
+            updateWindowRestPosition(target.Position)
+        end
     end)
 end
 
@@ -3079,10 +3127,61 @@ local function closePicker()
     PickerMode = nil
 end
 
+local function clearMenuTweenState()
+    for _, connection in ipairs(ActiveMenuTweenConnections) do
+        connection:Disconnect()
+    end
+
+    table.clear(ActiveMenuTweens)
+    table.clear(ActiveMenuTweenConnections)
+end
+
 function stopMenuTween()
-    if ActiveMenuTween then
-        ActiveMenuTween:Cancel()
-        ActiveMenuTween = nil
+    for _, tweenObject in ipairs(ActiveMenuTweens) do
+        tweenObject:Cancel()
+    end
+
+    clearMenuTweenState()
+end
+
+local function animateMenuVisibility(visible)
+    stopMenuTween()
+
+    local restPosition = WindowRestPosition or Window.Position
+    local hiddenPosition = getMenuHiddenPosition()
+
+    if visible then
+        Window.Visible = true
+        Window.Position = hiddenPosition
+        WindowScale.Scale = 0.965
+        Window.BackgroundTransparency = 0
+
+        local positionTween = trackMenuTween(tween(Window, 0.24, {
+            Position = restPosition,
+        }, Enum.EasingStyle.Quint))
+        local scaleTween = trackMenuTween(tween(WindowScale, 0.24, {
+            Scale = 1,
+        }, Enum.EasingStyle.Back))
+
+        trackMenuConnection(scaleTween.Completed:Connect(function()
+            clearMenuTweenState()
+            Window.Position = restPosition
+            WindowScale.Scale = 1
+        end))
+    else
+        local positionTween = trackMenuTween(tween(Window, 0.18, {
+            Position = hiddenPosition,
+        }, Enum.EasingStyle.Quad))
+        trackMenuTween(tween(WindowScale, 0.18, {
+            Scale = 0.982,
+        }, Enum.EasingStyle.Quad))
+
+        trackMenuConnection(positionTween.Completed:Connect(function()
+            clearMenuTweenState()
+            Window.Visible = false
+            Window.Position = restPosition
+            WindowScale.Scale = 1
+        end))
     end
 end
 
@@ -3481,47 +3580,16 @@ Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
 
     if input.KeyCode == MenuToggleBind then
         MenuVisible = not MenuVisible
-        stopMenuTween()
 
         if MenuVisible then
-            Window.Visible = true
-            local show = tween(Window, 0.18, {
-                BackgroundTransparency = 0,
-                Position = UDim2.new(0.5, -96, 0.5, -16),
-            })
-            ActiveMenuTween = show
-            local done
-            done = show.Completed:Connect(function()
-                if done then
-                    done:Disconnect()
-                end
-                if ActiveMenuTween == show then
-                    ActiveMenuTween = nil
-                end
-            end)
+            animateMenuVisibility(true)
         else
             closePicker()
             closeDropdown()
             closeBindPopup()
             closeMiniPanels()
             table.clear(ActiveHoldEntries)
-            local hide = tween(Window, 0.18, {
-                BackgroundTransparency = 1,
-                Position = UDim2.new(0.5, -96, 0.5, -8),
-            })
-            ActiveMenuTween = hide
-            local done
-            done = hide.Completed:Connect(function()
-                if done then
-                    done:Disconnect()
-                end
-                if ActiveMenuTween == hide then
-                    ActiveMenuTween = nil
-                end
-                if not MenuVisible then
-                    Window.Visible = false
-                end
-            end)
+            animateMenuVisibility(false)
         end
 
         return
@@ -3654,12 +3722,11 @@ local function playIntro()
     Intro:Destroy()
     Blur:Destroy()
 
+    updateWindowRestPosition(WindowRestPosition or Window.Position)
     Window.Visible = true
-    Window.BackgroundTransparency = 1
-    tween(Window, 0.22, {
-        BackgroundTransparency = 0,
-        Position = UDim2.new(0.5, -96, 0.5, -16),
-    })
+    Window.Position = getMenuHiddenPosition()
+    WindowScale.Scale = 0.965
+    animateMenuVisibility(true)
     IntroDone = true
 end
 
@@ -4038,9 +4105,12 @@ function Library.new(config)
 
     IntroDone = false
     MenuVisible = true
+    stopMenuTween()
+    updateWindowRestPosition(DefaultWindowPosition)
     Window.Visible = false
     Window.BackgroundTransparency = 1
-    Window.Position = UDim2.new(0.5, -96, 0.5, -16)
+    Window.Position = DefaultWindowPosition
+    WindowScale.Scale = 1
 
     refreshTheme()
     rebuildSearchResults("")
@@ -4051,6 +4121,8 @@ function Library.new(config)
         IntroDone = true
         Window.Visible = true
         Window.BackgroundTransparency = 0
+        Window.Position = WindowRestPosition
+        WindowScale.Scale = 1
     else
         task.spawn(playIntro)
     end
@@ -4123,7 +4195,12 @@ Library.flags = EntryMap
 Library.entries = Entries
 
 refreshTheme()
+stopMenuTween()
+updateWindowRestPosition(DefaultWindowPosition)
 Window.Visible = false
+Window.Position = DefaultWindowPosition
+WindowScale.Scale = 1
+Window.BackgroundTransparency = 1
 WatermarkShell.outline.Visible = false
 KeybindShell.outline.Visible = false
 IntroDone = false
