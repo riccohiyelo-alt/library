@@ -70,9 +70,9 @@ local Theme = {
     inline = Color3.fromRGB(28, 31, 48),
     high = Color3.fromRGB(46, 49, 73),
     low = Color3.fromRGB(34, 36, 54),
-    section = Color3.fromRGB(101, 81, 149),
-    sectionHigh = Color3.fromRGB(142, 121, 196),
-    sectionLow = Color3.fromRGB(93, 73, 142),
+    section = Color3.fromRGB(182, 166, 255),
+    sectionHigh = Color3.fromRGB(208, 196, 255),
+    sectionLow = Color3.fromRGB(150, 132, 236),
     accent = Color3.fromRGB(96, 118, 214),
     text = Color3.fromRGB(226, 229, 242),
     textDim = Color3.fromRGB(158, 162, 182),
@@ -3070,8 +3070,8 @@ getSection = function(tabId, columnIndex, name)
         BackgroundColor3 = Theme.section,
         Position = UDim2.fromOffset(1, 1),
         Size = UDim2.new(1, -2, 1, -2),
-        BackgroundTransparency = 0.42,
-        ZIndex = 17,
+        BackgroundTransparency = 0.16,
+        ZIndex = 19,
     })
     registerTheme("section", sectionTint, "BackgroundColor3")
 
@@ -3087,7 +3087,7 @@ getSection = function(tabId, columnIndex, name)
         Text = name,
         TextSize = 12,
         TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 19,
+        ZIndex = 21,
     }, false)
 
     local holder = create("ScrollingFrame", {
@@ -3103,7 +3103,7 @@ getSection = function(tabId, columnIndex, name)
         TopImage = "",
         BottomImage = "",
         MidImage = "",
-        ZIndex = 18,
+        ZIndex = 20,
     })
     registerTheme("accent", holder, "ScrollBarImageColor3")
 
