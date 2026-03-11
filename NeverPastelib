@@ -2004,6 +2004,23 @@ local function getRequestedConfigName(preferSelected)
     return nil
 end
 
+do
+local closeMiniPanels
+local getSection
+local createTab
+local createToggleRow
+local createButtonRow
+local createSliderRow
+local createTextboxRow
+local createDropdownRow
+local createKeybindRow
+local createColorRow
+local closeBindPopup
+local closePicker
+local animateMenuVisibility
+local refreshKeybindList
+
+do
 function closeSearch()
     SearchOpen = false
     SearchShell.outline.Visible = false
@@ -2024,7 +2041,7 @@ function closeSettings()
     end
 end
 
-local function closeMiniPanels()
+closeMiniPanels = function()
     closeSearch()
     closeInfo()
     closeSettings()
@@ -2348,6 +2365,10 @@ do
     createModeButton("hold", "Hold")
 end
 
+end
+
+do
+
 local function updateShellSize(section)
     if not section or not section.layout then
         return
@@ -2556,7 +2577,7 @@ makeDraggable(WatermarkShell.outline, WatermarkShell.outline)
 makeDraggable(KeybindShell.outline, KeybindShell.outline)
 makeResizable(WindowShell.resizeHandle, Window, WindowMinSize)
 
-local function getSection(tabId, columnIndex, name)
+getSection = function(tabId, columnIndex, name)
     local key = tabId .. "_" .. columnIndex .. "_" .. name
     if Sections[key] then
         return Sections[key]
@@ -2632,7 +2653,7 @@ local function reflowTabButtons()
     end
 end
 
-local function createTab(id, name, iconAsset, order)
+createTab = function(id, name, iconAsset, order)
     local columnGap = 6
     local columnCount = 3
     local columnWidthOffset = -math.floor((columnGap * (columnCount - 1)) / columnCount + 0.5)
@@ -2848,7 +2869,7 @@ local function createSubsectionHeader(entry)
     label.TextTransparency = 0.1
 end
 
-local function createToggleRow(entry)
+createToggleRow = function(entry)
     createSubsectionHeader(entry)
     local section = getSection(entry.tab, entry.column, entry.section)
     local hasPicker = entry.picker == true
@@ -3008,7 +3029,7 @@ local function createToggleRow(entry)
     createKeybindEntry(entry)
 end
 
-local function createButtonRow(entry)
+createButtonRow = function(entry)
     createSubsectionHeader(entry)
     local section = getSection(entry.tab, entry.column, entry.section)
 
@@ -3058,7 +3079,7 @@ local function createButtonRow(entry)
     end)
 end
 
-local function createSliderRow(entry)
+createSliderRow = function(entry)
     createSubsectionHeader(entry)
     local section = getSection(entry.tab, entry.column, entry.section)
 
@@ -3219,7 +3240,7 @@ local function createSliderRow(entry)
     }
 end
 
-local function createTextboxRow(entry)
+createTextboxRow = function(entry)
     createSubsectionHeader(entry)
     local section = getSection(entry.tab, entry.column, entry.section)
 
@@ -3293,7 +3314,7 @@ local function createTextboxRow(entry)
     }
 end
 
-local function createDropdownRow(entry)
+createDropdownRow = function(entry)
     createSubsectionHeader(entry)
     local section = getSection(entry.tab, entry.column, entry.section)
 
@@ -3377,7 +3398,7 @@ local function createDropdownRow(entry)
     }
 end
 
-local function createKeybindRow(entry)
+createKeybindRow = function(entry)
     createSubsectionHeader(entry)
     local section = getSection(entry.tab, entry.column, entry.section)
 
@@ -3449,7 +3470,7 @@ local function createKeybindRow(entry)
     end)
 end
 
-local function createColorRow(entry)
+createColorRow = function(entry)
     createSubsectionHeader(entry)
     local section = getSection(entry.tab, entry.column, entry.section)
 
@@ -3587,7 +3608,7 @@ local function openBindPopup(entry)
     updateBindPopup()
 end
 
-local function closeBindPopup()
+closeBindPopup = function()
     BindPopupShell.outline.Visible = false
     BindOverlay.Visible = false
     BindPopupCurrent = nil
@@ -3595,7 +3616,7 @@ local function closeBindPopup()
     BindPopupEntry = nil
 end
 
-local function closePicker()
+closePicker = function()
     PickerShell.outline.Visible = false
     PickerOverlay.Visible = false
     PickerState.target = nil
@@ -3621,7 +3642,7 @@ function stopMenuTween()
     clearMenuTweenState()
 end
 
-local function animateMenuVisibility(visible)
+animateMenuVisibility = function(visible)
     local restPosition = WindowRestPosition or Window.Position
     local hiddenPosition = getMenuHiddenPosition()
     local wasVisible = Window.Visible
@@ -3701,7 +3722,7 @@ for modeId, data in pairs(ModeButtons) do
     end)
 end
 
-local function refreshKeybindList()
+refreshKeybindList = function()
     local visible = IntroDone and Runtime.showKeybindList
     KeybindShell.outline.Visible = visible
     local visibleEntries = {}
@@ -3832,6 +3853,10 @@ function updateWatermark()
         LastWatermarkTextUpdate = now
     end
 end
+
+end
+
+do
 
 local function openPickerFor(entry)
     if not entry or not entry.ui or not entry.ui.colorButton then
@@ -4950,6 +4975,7 @@ function Library.new(config)
     end)
 
     return windowObject
+end
 end
 
 function Library:SetTheme(config)
