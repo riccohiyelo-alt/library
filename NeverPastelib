@@ -4977,6 +4977,7 @@ function Library.new(config)
     return windowObject
 end
 end
+end
 
 function Library:SetTheme(config)
     config = config or {}
