@@ -3070,8 +3070,8 @@ getSection = function(tabId, columnIndex, name)
         BackgroundColor3 = Theme.section,
         Position = UDim2.fromOffset(1, 1),
         Size = UDim2.new(1, -2, 1, -2),
-        BackgroundTransparency = 0.62,
-        ZIndex = 19,
+        BackgroundTransparency = 0.84,
+        ZIndex = 18,
     })
     registerTheme("section", sectionTint, "BackgroundColor3")
 
@@ -3092,7 +3092,8 @@ getSection = function(tabId, columnIndex, name)
 
     local holder = create("ScrollingFrame", {
         Parent = shell.background,
-        BackgroundTransparency = 1,
+        BackgroundColor3 = Theme.section,
+        BackgroundTransparency = 0.22,
         BorderSizePixel = 0,
         Position = UDim2.fromOffset(4, 18),
         Size = UDim2.new(1, -8, 0, 0),
@@ -3105,7 +3106,11 @@ getSection = function(tabId, columnIndex, name)
         MidImage = "",
         ZIndex = 20,
     })
+    registerTheme("section", holder, "BackgroundColor3")
     registerTheme("accent", holder, "ScrollBarImageColor3")
+
+    local holderGradient = applyGradient(holder, Theme.sectionHigh, Theme.sectionLow, 90)
+    registerTheme("sectionContrast", holderGradient, "Color")
 
     local layout = create("UIListLayout", {
         Parent = holder,
