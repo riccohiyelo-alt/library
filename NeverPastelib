@@ -2019,6 +2019,13 @@ local closeBindPopup
 local closePicker
 local animateMenuVisibility
 local refreshKeybindList
+local updateShellSize
+local updateWindowRestPosition
+local getMenuHiddenPosition
+local reflowTabButtons
+local colorToHex
+local openBindPopup
+local CreatedSubsectionHeaders = {}
 
 do
 function closeSearch()
@@ -2369,7 +2376,9 @@ end
 
 do
 
-local function updateShellSize(section)
+do
+
+updateShellSize = function(section)
     if not section or not section.layout then
         return
     end
@@ -2408,15 +2417,11 @@ local function clampGuiPositionToViewport(guiObject, anchoredPosition)
     )
 end
 
-local function setGuiPosition(guiObject, anchoredPosition)
-    guiObject.Position = UDim2.fromOffset(anchoredPosition.X, anchoredPosition.Y)
-end
-
-local function updateWindowRestPosition(position)
+updateWindowRestPosition = function(position)
     WindowRestPosition = position or Window.Position
 end
 
-local function getMenuHiddenPosition()
+getMenuHiddenPosition = function()
     local rest = WindowRestPosition or Window.Position
     return UDim2.new(
         rest.X.Scale,
@@ -2424,22 +2429,6 @@ local function getMenuHiddenPosition()
         rest.Y.Scale,
         rest.Y.Offset + MenuHiddenOffset.Y
     )
-end
-
-local function trackMenuTween(tweenObject)
-    if tweenObject then
-        ActiveMenuTweens[#ActiveMenuTweens + 1] = tweenObject
-    end
-
-    return tweenObject
-end
-
-local function trackMenuConnection(connection)
-    if connection then
-        ActiveMenuTweenConnections[#ActiveMenuTweenConnections + 1] = connection
-    end
-
-    return connection
 end
 
 local function makeDraggable(handle, target)
@@ -2643,7 +2632,7 @@ getSection = function(tabId, columnIndex, name)
     return section
 end
 
-local function reflowTabButtons()
+reflowTabButtons = function()
     local count = math.max(#TabDefinitions, 1)
     for _, definition in ipairs(TabDefinitions) do
         local tab = Tabs[definition.id]
@@ -2753,7 +2742,7 @@ createTab = function(id, name, iconAsset, order)
     reflowTabButtons()
 end
 
-local function colorToHex(color)
+colorToHex = function(color)
     return string.format("#%02X%02X%02X", math.floor(color.R * 255), math.floor(color.G * 255), math.floor(color.B * 255))
 end
 
@@ -2814,8 +2803,6 @@ local function createKeybindEntry(entry)
         bindText = bindText,
     }
 end
-
-local CreatedSubsectionHeaders = {}
 
 local function createSubsectionHeader(entry)
     if not entry.subsection or entry.subsection == "" then
@@ -3558,6 +3545,10 @@ function selectTab(id)
     end
 end
 
+end
+
+do
+
 local function getBindDisplayText(entry)
     if not entry or entry.kind ~= "toggle" then
         return "NONE"
@@ -3585,7 +3576,7 @@ local function updateBindPopup()
     end
 end
 
-local function openBindPopup(entry)
+openBindPopup = function(entry)
     if not entry or not entry.ui or not entry.ui.row then
         BindPopupShell.outline.Visible = false
         BindOverlay.Visible = false
@@ -3623,6 +3614,22 @@ closePicker = function()
     OpenPicker = nil
     PickerOpen = false
     PickerMode = nil
+end
+
+local function trackMenuTween(tweenObject)
+    if tweenObject then
+        ActiveMenuTweens[#ActiveMenuTweens + 1] = tweenObject
+    end
+
+    return tweenObject
+end
+
+local function trackMenuConnection(connection)
+    if connection then
+        ActiveMenuTweenConnections[#ActiveMenuTweenConnections + 1] = connection
+    end
+
+    return connection
 end
 
 local function clearMenuTweenState()
@@ -3852,6 +3859,8 @@ function updateWatermark()
         WatermarkShell.outline.Size = UDim2.fromOffset(WatermarkWidth, 24)
         LastWatermarkTextUpdate = now
     end
+end
+
 end
 
 end
@@ -5045,7 +5054,7 @@ Library.entries = Entries
 
 refreshTheme()
 stopMenuTween()
-updateWindowRestPosition(DefaultWindowPosition)
+WindowRestPosition = DefaultWindowPosition
 Window.Visible = false
 Window.Position = DefaultWindowPosition
 WindowScale.Scale = 1
