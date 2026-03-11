@@ -70,6 +70,9 @@ local Theme = {
     inline = Color3.fromRGB(28, 31, 48),
     high = Color3.fromRGB(46, 49, 73),
     low = Color3.fromRGB(34, 36, 54),
+    section = Color3.fromRGB(101, 81, 149),
+    sectionHigh = Color3.fromRGB(142, 121, 196),
+    sectionLow = Color3.fromRGB(93, 73, 142),
     accent = Color3.fromRGB(96, 118, 214),
     text = Color3.fromRGB(226, 229, 242),
     textDim = Color3.fromRGB(158, 162, 182),
@@ -106,10 +109,12 @@ end
 local ThemeRegistry = {
     outline = {},
     inline = {},
+    section = {},
     accent = {},
     text = {},
     textDim = {},
     contrast = {},
+    sectionContrast = {},
 }
 
 local function create(className, properties)
@@ -199,6 +204,12 @@ local function refreshTheme()
         end
     end
 
+    for _, entry in ipairs(ThemeRegistry.section) do
+        if entry.instance.Parent then
+            entry.instance[entry.property] = Theme.section
+        end
+    end
+
     for _, entry in ipairs(ThemeRegistry.accent) do
         if entry.instance.Parent then
             entry.instance[entry.property] = Theme.accent
@@ -225,6 +236,17 @@ local function refreshTheme()
     for _, entry in ipairs(ThemeRegistry.contrast) do
         if entry.instance.Parent then
             entry.instance[entry.property] = sequence
+        end
+    end
+
+    local sectionSequence = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Theme.sectionHigh),
+        ColorSequenceKeypoint.new(1, Theme.sectionLow),
+    })
+
+    for _, entry in ipairs(ThemeRegistry.sectionContrast) do
+        if entry.instance.Parent then
+            entry.instance[entry.property] = sectionSequence
         end
     end
 end
@@ -3041,6 +3063,20 @@ getSection = function(tabId, columnIndex, name)
     local shell = addShell(column, UDim2.new(1, 0, 0, 28), UDim2.fromOffset(0, 0), false, 0, 16)
     shell.outline.AutomaticSize = Enum.AutomaticSize.None
     shell.outline.LayoutOrder = layoutOrder
+
+    local sectionTint = create("Frame", {
+        Parent = shell.background,
+        BorderSizePixel = 0,
+        BackgroundColor3 = Theme.section,
+        Position = UDim2.fromOffset(1, 1),
+        Size = UDim2.new(1, -2, 1, -2),
+        BackgroundTransparency = 0.42,
+        ZIndex = 17,
+    })
+    registerTheme("section", sectionTint, "BackgroundColor3")
+
+    local sectionTintGradient = applyGradient(sectionTint, Theme.sectionHigh, Theme.sectionLow, 90)
+    registerTheme("sectionContrast", sectionTintGradient, "Color")
 
     local title = createThemedText(shell.background, {
         Parent = shell.background,
