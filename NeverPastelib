@@ -71,8 +71,8 @@ local Theme = {
     high = Color3.fromRGB(46, 49, 73),
     low = Color3.fromRGB(34, 36, 54),
     section = Color3.fromRGB(90, 58, 166),
-    sectionHigh = Color3.fromRGB(124, 92, 204),
-    sectionLow = Color3.fromRGB(58, 34, 118),
+    sectionHigh = Color3.fromRGB(104, 72, 184),
+    sectionLow = Color3.fromRGB(78, 49, 144),
     accent = Color3.fromRGB(96, 118, 214),
     text = Color3.fromRGB(226, 229, 242),
     textDim = Color3.fromRGB(158, 162, 182),
@@ -3070,7 +3070,7 @@ getSection = function(tabId, columnIndex, name)
         BackgroundColor3 = Theme.section,
         Position = UDim2.fromOffset(1, 1),
         Size = UDim2.new(1, -2, 1, -2),
-        BackgroundTransparency = 0.84,
+        BackgroundTransparency = 0.93,
         ZIndex = 18,
     })
     registerTheme("section", sectionTint, "BackgroundColor3")
@@ -3093,7 +3093,7 @@ getSection = function(tabId, columnIndex, name)
     local holder = create("ScrollingFrame", {
         Parent = shell.background,
         BackgroundColor3 = Theme.section,
-        BackgroundTransparency = 0.22,
+        BackgroundTransparency = 0.08,
         BorderSizePixel = 0,
         Position = UDim2.fromOffset(4, 18),
         Size = UDim2.new(1, -8, 0, 0),
@@ -4052,8 +4052,8 @@ function selectTab(id)
         local selected = tabId == id
         tab.fill.BackgroundTransparency = selected and 0 or 1
         tab.fill.Size = selected and UDim2.new(1, 0, 1, 0) or UDim2.new(0, 0, 1, 0)
-        tab.icon.ImageColor3 = selected and Theme.outline or Theme.textDim
-        tab.label.TextColor3 = selected and Theme.outline or Theme.text
+        tab.icon.ImageColor3 = selected and Theme.text or Theme.textDim
+        tab.label.TextColor3 = selected and Theme.text or Theme.text
         tab.page.Visible = selected
         tab.page.Position = UDim2.fromOffset(0, 0)
     end
@@ -4084,7 +4084,7 @@ local function updateBindPopup()
     for modeId, data in pairs(ModeButtons) do
         local selected = MenuState.bindPopupCurrent.mode == modeId
         data.fill.BackgroundTransparency = selected and 0 or 1
-        data.text.TextColor3 = selected and Theme.outline or Theme.text
+        data.text.TextColor3 = selected and Theme.text or Theme.text
     end
 end
 
@@ -5526,6 +5526,18 @@ function Library:SetTheme(config)
     end
     if typeof(config.Low) == "Color3" then
         Theme.low = config.Low
+    end
+    if typeof(config.Section) == "Color3" then
+        Theme.section = config.Section
+    end
+    if typeof(config.SectionHigh) == "Color3" then
+        Theme.sectionHigh = config.SectionHigh
+    end
+    if typeof(config.SectionLow) == "Color3" then
+        Theme.sectionLow = config.SectionLow
+    end
+    if typeof(config.AccentGlow) == "Color3" then
+        Theme.accentGlow = config.AccentGlow
     end
 
     refreshTheme()
