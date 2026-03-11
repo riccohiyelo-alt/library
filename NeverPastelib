@@ -66,17 +66,17 @@ if string.find(executorName, "solara") or string.find(executorName, "xeno") then
 end
 
 local Theme = {
-    outline = Color3.fromRGB(9, 11, 18),
-    inline = Color3.fromRGB(28, 31, 48),
-    high = Color3.fromRGB(46, 49, 73),
-    low = Color3.fromRGB(34, 36, 54),
-    section = Color3.fromRGB(90, 58, 166),
-    sectionHigh = Color3.fromRGB(104, 72, 184),
-    sectionLow = Color3.fromRGB(78, 49, 144),
-    accent = Color3.fromRGB(96, 118, 214),
-    text = Color3.fromRGB(226, 229, 242),
-    textDim = Color3.fromRGB(158, 162, 182),
-    accentGlow = Color3.fromRGB(150, 110, 255),
+    outline = Color3.fromRGB(8, 15, 22),
+    inline = Color3.fromRGB(20, 34, 46),
+    high = Color3.fromRGB(35, 67, 84),
+    low = Color3.fromRGB(20, 43, 58),
+    section = Color3.fromRGB(37, 96, 152),
+    sectionHigh = Color3.fromRGB(63, 132, 194),
+    sectionLow = Color3.fromRGB(25, 68, 115),
+    accent = Color3.fromRGB(72, 166, 214),
+    text = Color3.fromRGB(225, 236, 242),
+    textDim = Color3.fromRGB(152, 176, 188),
+    accentGlow = Color3.fromRGB(108, 203, 255),
 }
 
 local IconAssets = {
