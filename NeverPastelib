@@ -312,6 +312,18 @@ local function bindToText(bind)
     return map[bind] or string.upper(bind.Name)
 end
 
+local function formatToggleBindText(entry)
+    if not entry or entry.kind ~= "toggle" then
+        return "NONE"
+    end
+
+    if entry.mode == "always" then
+        return "ALWAYS"
+    end
+
+    return bindToText(entry.bind)
+end
+
 local function inputMatchesBind(bind, input)
     if typeof(bind) ~= "EnumItem" then
         return false
@@ -2754,15 +2766,7 @@ colorToHex = function(color)
 end
 
 getInlineBindText = function(entry)
-    if not entry or entry.kind ~= "toggle" then
-        return "NONE"
-    end
-
-    if entry.mode == "always" then
-        return "ALWAYS"
-    end
-
-    return bindToText(entry.bind)
+    return formatToggleBindText(entry)
 end
 
 local function createKeybindEntry(entry)
@@ -2948,7 +2952,7 @@ createToggleRow = function(entry)
         Size = UDim2.fromOffset(56, 16),
         AutomaticSize = Enum.AutomaticSize.X,
         Font = Enum.Font.Code,
-        Text = getInlineBindText(entry),
+        Text = formatToggleBindText(entry),
         TextSize = 11,
         ZIndex = 23,
     }, false)
@@ -3557,15 +3561,7 @@ end
 do
 
 local function getBindDisplayText(entry)
-    if not entry or entry.kind ~= "toggle" then
-        return "NONE"
-    end
-
-    if entry.mode == "always" then
-        return "ALWAYS"
-    end
-
-    return bindToText(entry.bind)
+    return formatToggleBindText(entry)
 end
 
 local function updateBindPopup()
@@ -3793,7 +3789,7 @@ function refreshRows()
             entry.ui.fill.BackgroundColor3 = entry.color
             entry.ui.fill.BackgroundTransparency = entry.state and 0 or 1
             if entry.ui.bindText then
-                entry.ui.bindText.Text = getInlineBindText(entry)
+                entry.ui.bindText.Text = formatToggleBindText(entry)
                 entry.ui.bindText.TextColor3 = BindPopupCurrent == entry and entry.color or (entry.mode == "always" and entry.color or Theme.textDim)
             end
             if entry.ui.colorDisplay then
@@ -3871,6 +3867,10 @@ end
 end
 
 end
+
+do
+local playIntro
+local clearWindowState
 
 do
 
@@ -4197,7 +4197,7 @@ Services.RunService.RenderStepped:Connect(function(deltaTime)
     updateWatermark()
 end)
 
-local function playIntro()
+playIntro = function()
     tween(Blur, 0.9, { Size = 52 }, Enum.EasingStyle.Quart)
     local fadeIn = tween(Intro, 0.45, { BackgroundTransparency = 0.28 }, Enum.EasingStyle.Quad)
     fadeIn.Completed:Wait()
@@ -4262,6 +4262,10 @@ local function playIntro()
     IntroDone = true
 end
 
+end
+
+do
+
 local function renderEntry(entry)
     if entry.kind == "toggle" then
         createToggleRow(entry)
@@ -4288,7 +4292,7 @@ local function clearSearchResults()
     end
 end
 
-local function clearWindowState()
+clearWindowState = function()
     closeDropdown()
     closePicker()
     closeBindPopup()
@@ -4605,6 +4609,10 @@ function WindowMethods:AddMenu(config)
     }, MenuMethods)
 end
 
+end
+
+do
+
 function WindowMethods:ExportConfig(useDefaults)
     local ok, encoded = pcall(function()
         return Services.HttpService:JSONEncode(exportConfigData(useDefaults == true))
@@ -4737,6 +4745,135 @@ function WindowMethods:LoadDefaults()
     return applyConfigData(exportConfigData(true))
 end
 
+local function warnConfigFailure(actionName, message)
+    warn("[NeverPaste Config] " .. tostring(actionName) .. " failed: " .. tostring(message))
+end
+
+local function onConfigSelectionChanged(value)
+    if ConfigSystem.syncing then
+        return
+    end
+
+    ConfigSystem.selectedName = type(value) == "string" and value or nil
+
+    if ConfigSystem.nameControl and ConfigSystem.selectedName then
+        ConfigSystem.syncing = true
+        ConfigSystem.nameControl:Set(ConfigSystem.selectedName)
+        ConfigSystem.syncing = false
+    end
+end
+
+local function onConfigNameChanged(value)
+    if ConfigSystem.syncing then
+        return
+    end
+
+    local normalized = normalizeConfigName(value)
+    if normalized ~= value and ConfigSystem.nameControl then
+        ConfigSystem.syncing = true
+        ConfigSystem.nameControl:Set(normalized)
+        ConfigSystem.syncing = false
+    end
+end
+
+local function buildUnsupportedConfigStorage(storageSection)
+    storageSection:AddButton({
+        Name = "Filesystem unsupported",
+        SkipConfig = true,
+        Callback = function()
+            warn("[NeverPaste Config] executor filesystem API is unavailable")
+        end,
+    })
+end
+
+local function buildConfigStorageSection(configMenu)
+    local storageSection = configMenu:AddSection({
+        Name = "Storage",
+        Position = "left",
+    })
+
+    if not ConfigSystem.supported then
+        buildUnsupportedConfigStorage(storageSection)
+        return false
+    end
+
+    local storageMain = storageSection:AddSubsection("Files")
+
+    ConfigSystem.listControl = storageMain:AddDropdown({
+        Name = "Selected",
+        Flag = "__neverpaste_config_selected",
+        Values = {},
+        Default = nil,
+        SkipConfig = true,
+        Callback = onConfigSelectionChanged,
+    })
+
+    ConfigSystem.nameControl = storageMain:AddTextbox({
+        Name = "Name",
+        Flag = "__neverpaste_config_name",
+        Default = "",
+        Placeholder = "new config",
+        SkipConfig = true,
+        Callback = onConfigNameChanged,
+    })
+
+    return true
+end
+
+local function addConfigActionButton(actionsMain, title, callback)
+    actionsMain:AddButton({
+        Name = title,
+        SkipConfig = true,
+        Callback = callback,
+    })
+end
+
+local function buildConfigActionSection(configMenu, windowObject)
+    local actionsMain = configMenu:AddSection({
+        Name = "Actions",
+        Position = "right",
+    }):AddSubsection("Manage")
+
+    addConfigActionButton(actionsMain, "Create", function()
+        local ok, message = windowObject:SaveConfig(getRequestedConfigName(false))
+        if not ok then
+            warnConfigFailure("Create", message)
+        end
+    end)
+
+    addConfigActionButton(actionsMain, "Save", function()
+        local ok, message = windowObject:SaveConfig(getRequestedConfigName(true))
+        if not ok then
+            warnConfigFailure("Save", message)
+        end
+    end)
+
+    addConfigActionButton(actionsMain, "Load", function()
+        local ok, message = windowObject:LoadConfig(getRequestedConfigName(true))
+        if not ok then
+            warnConfigFailure("Load", message)
+        end
+    end)
+
+    addConfigActionButton(actionsMain, "Delete", function()
+        local ok, message = windowObject:DeleteConfig(getRequestedConfigName(true))
+        if not ok then
+            warnConfigFailure("Delete", message)
+        end
+    end)
+
+    addConfigActionButton(actionsMain, "Refresh", function()
+        refreshConfigControls(nil, false)
+    end)
+
+    addConfigActionButton(actionsMain, "Load Defaults", function()
+        local ok, message = windowObject:LoadDefaults()
+        if not ok then
+            warnConfigFailure("Load defaults", message)
+        end
+    end)
+end
+
 local function buildConfigMenu(windowObject)
     if not windowObject or ConfigSystem.menuBuilt or not ConfigSystem.enabled then
         return
@@ -4750,135 +4887,11 @@ local function buildConfigMenu(windowObject)
         Id = "__neverpaste_configs",
     })
 
-    local storageSection = configMenu:AddSection({
-        Name = "Storage",
-        Position = "left",
-    })
-
-    if not ConfigSystem.supported then
-        storageSection:AddButton({
-            Name = "Filesystem unsupported",
-            SkipConfig = true,
-            Callback = function()
-                warn("[NeverPaste Config] executor filesystem API is unavailable")
-            end,
-        })
+    if not buildConfigStorageSection(configMenu) then
         return
     end
 
-    local storageMain = storageSection:AddSubsection("Files")
-
-    ConfigSystem.listControl = storageMain:AddDropdown({
-        Name = "Selected",
-        Flag = "__neverpaste_config_selected",
-        Values = {},
-        Default = nil,
-        SkipConfig = true,
-        Callback = function(value)
-            if ConfigSystem.syncing then
-                return
-            end
-
-            ConfigSystem.selectedName = type(value) == "string" and value or nil
-
-            if ConfigSystem.nameControl and ConfigSystem.selectedName then
-                ConfigSystem.syncing = true
-                ConfigSystem.nameControl:Set(ConfigSystem.selectedName)
-                ConfigSystem.syncing = false
-            end
-        end,
-    })
-
-    ConfigSystem.nameControl = storageMain:AddTextbox({
-        Name = "Name",
-        Flag = "__neverpaste_config_name",
-        Default = "",
-        Placeholder = "new config",
-        SkipConfig = true,
-        Callback = function(value)
-            if ConfigSystem.syncing then
-                return
-            end
-
-            local normalized = normalizeConfigName(value)
-            if normalized ~= value and ConfigSystem.nameControl then
-                ConfigSystem.syncing = true
-                ConfigSystem.nameControl:Set(normalized)
-                ConfigSystem.syncing = false
-            end
-        end,
-    })
-
-    local actionsSection = configMenu:AddSection({
-        Name = "Actions",
-        Position = "right",
-    })
-
-    local actionsMain = actionsSection:AddSubsection("Manage")
-
-    actionsMain:AddButton({
-        Name = "Create",
-        SkipConfig = true,
-        Callback = function()
-            local ok, message = windowObject:SaveConfig(getRequestedConfigName(false))
-            if not ok then
-                warn("[NeverPaste Config] Create failed: " .. tostring(message))
-            end
-        end,
-    })
-
-    actionsMain:AddButton({
-        Name = "Save",
-        SkipConfig = true,
-        Callback = function()
-            local ok, message = windowObject:SaveConfig(getRequestedConfigName(true))
-            if not ok then
-                warn("[NeverPaste Config] Save failed: " .. tostring(message))
-            end
-        end,
-    })
-
-    actionsMain:AddButton({
-        Name = "Load",
-        SkipConfig = true,
-        Callback = function()
-            local ok, message = windowObject:LoadConfig(getRequestedConfigName(true))
-            if not ok then
-                warn("[NeverPaste Config] Load failed: " .. tostring(message))
-            end
-        end,
-    })
-
-    actionsMain:AddButton({
-        Name = "Delete",
-        SkipConfig = true,
-        Callback = function()
-            local ok, message = windowObject:DeleteConfig(getRequestedConfigName(true))
-            if not ok then
-                warn("[NeverPaste Config] Delete failed: " .. tostring(message))
-            end
-        end,
-    })
-
-    actionsMain:AddButton({
-        Name = "Refresh",
-        SkipConfig = true,
-        Callback = function()
-            refreshConfigControls(nil, false)
-        end,
-    })
-
-    actionsMain:AddButton({
-        Name = "Load Defaults",
-        SkipConfig = true,
-        Callback = function()
-            local ok, message = windowObject:LoadDefaults()
-            if not ok then
-                warn("[NeverPaste Config] Load defaults failed: " .. tostring(message))
-            end
-        end,
-    })
-
+    buildConfigActionSection(configMenu, windowObject)
     refreshConfigControls(nil, false)
 end
 
@@ -4991,6 +5004,7 @@ function Library.new(config)
     end)
 
     return windowObject
+end
 end
 end
 end
