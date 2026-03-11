@@ -1475,8 +1475,7 @@ rebuildSearchResults = function(query)
     end
 
     SearchEmpty.Visible = resultCount == 0
-    local layout = SearchResults:FindFirstChildOfClass("UIListLayout")
-    SearchResults.CanvasSize = UDim2.fromOffset(0, layout and layout.AbsoluteContentSize.Y or 0)
+    SearchResults.CanvasSize = UDim2.fromOffset(0, resultCount > 0 and (resultCount * 30) + ((resultCount - 1) * 4) or 0)
 end
 
 createQuickAction("Reset window size", function()
