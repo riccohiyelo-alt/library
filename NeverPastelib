@@ -571,9 +571,15 @@ local Runtime = {
     showKeybindList = true,
 }
 
+local supportsConfigFiles
+
 local ConfigSystem = {
     enabled = true,
-    supported = supportsConfigFiles(),
+    supported = FileApi.makefolder ~= nil
+        and FileApi.writefile ~= nil
+        and FileApi.readfile ~= nil
+        and FileApi.listfiles ~= nil
+        and FileApi.delfile ~= nil,
     directory = "NeverPaste",
     folder = "NeverPaste/configs",
     menuBuilt = false,
@@ -1436,7 +1442,7 @@ local function trimString(text)
     return tostring(text or ""):gsub("^%s+", ""):gsub("%s+$", "")
 end
 
-local function supportsConfigFiles()
+supportsConfigFiles = function()
     return FileApi.makefolder ~= nil
         and FileApi.writefile ~= nil
         and FileApi.readfile ~= nil
