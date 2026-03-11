@@ -387,113 +387,120 @@ end
 Services.Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(attachViewportListener)
 attachViewportListener()
 
-local Blur = create("BlurEffect", {
-    Parent = Services.Lighting,
-    Name = "NeverPasteBlur",
-    Size = 0,
-})
-
-local Intro = create("Frame", {
-    Parent = ScreenGui,
-    Size = UDim2.fromScale(1, 1),
-    BackgroundColor3 = Color3.fromRGB(0, 0, 0),
-    BackgroundTransparency = 1,
-    ZIndex = 100,
-})
-
-local IntroShade = applyGradient(Intro, Color3.fromRGB(8, 10, 20), Color3.fromRGB(17, 12, 31), 135)
+local Blur
+local Intro
+local IntroStart
+local IntroStartScale
+local IntroGlyphs = {}
 
 local function measureText(text, font, textSize, maxWidth)
     return Services.TextService:GetTextSize(text, textSize, font, Vector2.new(maxWidth or 1000, 1000))
 end
 
-local function measureIntroText(text, font, textSize)
-    return measureText(text, font, textSize)
-end
+do
+    local function measureIntroText(text, font, textSize)
+        return measureText(text, font, textSize)
+    end
 
-local IntroLetters = create("Frame", {
-    Parent = Intro,
-    BackgroundTransparency = 1,
-    AnchorPoint = Vector2.new(0.5, 0.5),
-    Position = UDim2.fromScale(0.5, 0.5),
-    Size = UDim2.new(1, -80, 0, 100),
-    ZIndex = 101,
-})
+    Blur = create("BlurEffect", {
+        Parent = Services.Lighting,
+        Name = "NeverPasteBlur",
+        Size = 0,
+    })
 
-local IntroLettersLayout = create("UIListLayout", {
-    Parent = IntroLetters,
-    FillDirection = Enum.FillDirection.Horizontal,
-    HorizontalAlignment = Enum.HorizontalAlignment.Center,
-    VerticalAlignment = Enum.VerticalAlignment.Center,
-    SortOrder = Enum.SortOrder.LayoutOrder,
-    Padding = UDim.new(0, 2),
-})
-
-local introStartBounds = measureIntroText("N", Enum.Font.GothamBold, 72)
-local IntroStart = create("TextLabel", {
-    Parent = Intro,
-    BackgroundTransparency = 1,
-    AnchorPoint = Vector2.new(0.5, 0.5),
-    Position = UDim2.fromScale(0.5, 0.5),
-    Size = UDim2.fromOffset(introStartBounds.X + 100, 74),
-    Font = Enum.Font.GothamBold,
-    Text = "N",
-    TextColor3 = Theme.text,
-    TextSize = 72,
-    TextWrapped = true,
-    TextTransparency = 1,
-    TextXAlignment = Enum.TextXAlignment.Center,
-    ZIndex = 102,
-})
-
-local IntroStartGradient = applyGradient(IntroStart, Color3.fromRGB(112, 148, 255), Color3.fromRGB(170, 102, 255), 90)
-local IntroStartScale = create("UIScale", {
-    Parent = IntroStart,
-    Scale = 4.25,
-})
-
-local IntroGlyphs = {}
-local IntroWidthAdjust = {}
-local IntroLetterPadding = 8
-
-for index = 1, #"NeverPaste" do
-    local character = string.sub("NeverPaste", index, index)
-    local glyphBounds = measureIntroText(character, Enum.Font.GothamBold, 72)
-    local holder = create("Frame", {
-        Parent = IntroLetters,
+    Intro = create("Frame", {
+        Parent = ScreenGui,
+        Size = UDim2.fromScale(1, 1),
+        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
         BackgroundTransparency = 1,
-        Size = UDim2.fromOffset(glyphBounds.X + IntroLetterPadding + (IntroWidthAdjust[character] or 0), 100),
-        LayoutOrder = index,
+        ZIndex = 100,
+    })
+
+    applyGradient(Intro, Color3.fromRGB(8, 10, 20), Color3.fromRGB(17, 12, 31), 135)
+
+    local introLetters = create("Frame", {
+        Parent = Intro,
+        BackgroundTransparency = 1,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.fromScale(0.5, 0.5),
+        Size = UDim2.new(1, -80, 0, 100),
         ZIndex = 101,
     })
 
-    local glyph = create("TextLabel", {
-        Parent = holder,
+    create("UIListLayout", {
+        Parent = introLetters,
+        FillDirection = Enum.FillDirection.Horizontal,
+        HorizontalAlignment = Enum.HorizontalAlignment.Center,
+        VerticalAlignment = Enum.VerticalAlignment.Center,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 2),
+    })
+
+    local introStartBounds = measureIntroText("N", Enum.Font.GothamBold, 72)
+    IntroStart = create("TextLabel", {
+        Parent = Intro,
         BackgroundTransparency = 1,
         AnchorPoint = Vector2.new(0.5, 0.5),
-        Position = index == 1 and UDim2.new(0.5, 0, 0.5, 0) or UDim2.new(0.5, 0, 0.5, 200),
-        Size = UDim2.fromOffset(glyphBounds.X + 100, 74),
+        Position = UDim2.fromScale(0.5, 0.5),
+        Size = UDim2.fromOffset(introStartBounds.X + 100, 74),
         Font = Enum.Font.GothamBold,
-        Text = character,
+        Text = "N",
         TextColor3 = Theme.text,
         TextSize = 72,
         TextWrapped = true,
         TextTransparency = 1,
         TextXAlignment = Enum.TextXAlignment.Center,
-        ZIndex = 101,
+        ZIndex = 102,
     })
 
-    applyGradient(
-        glyph,
-        index <= 5 and Color3.fromRGB(118, 154, 255) or Color3.fromRGB(220, 226, 255),
-        index <= 5 and Color3.fromRGB(162, 108, 255) or Color3.fromRGB(160, 118, 255),
-        90
-    )
+    applyGradient(IntroStart, Color3.fromRGB(112, 148, 255), Color3.fromRGB(170, 102, 255), 90)
+    IntroStartScale = create("UIScale", {
+        Parent = IntroStart,
+        Scale = 4.25,
+    })
 
-    IntroGlyphs[index] = {
-        holder = holder,
-        glyph = glyph,
-    }
+    local introWidthAdjust = {}
+    local introLetterPadding = 8
+
+    for index = 1, #"NeverPaste" do
+        local character = string.sub("NeverPaste", index, index)
+        local glyphBounds = measureIntroText(character, Enum.Font.GothamBold, 72)
+        local holder = create("Frame", {
+            Parent = introLetters,
+            BackgroundTransparency = 1,
+            Size = UDim2.fromOffset(glyphBounds.X + introLetterPadding + (introWidthAdjust[character] or 0), 100),
+            LayoutOrder = index,
+            ZIndex = 101,
+        })
+
+        local glyph = create("TextLabel", {
+            Parent = holder,
+            BackgroundTransparency = 1,
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = index == 1 and UDim2.new(0.5, 0, 0.5, 0) or UDim2.new(0.5, 0, 0.5, 200),
+            Size = UDim2.fromOffset(glyphBounds.X + 100, 74),
+            Font = Enum.Font.GothamBold,
+            Text = character,
+            TextColor3 = Theme.text,
+            TextSize = 72,
+            TextWrapped = true,
+            TextTransparency = 1,
+            TextXAlignment = Enum.TextXAlignment.Center,
+            ZIndex = 101,
+        })
+
+        applyGradient(
+            glyph,
+            index <= 5 and Color3.fromRGB(118, 154, 255) or Color3.fromRGB(220, 226, 255),
+            index <= 5 and Color3.fromRGB(162, 108, 255) or Color3.fromRGB(160, 118, 255),
+            90
+        )
+
+        IntroGlyphs[index] = {
+            holder = holder,
+            glyph = glyph,
+        }
+    end
 end
 
 local MenuToggleBind = Enum.KeyCode.Insert
@@ -537,29 +544,31 @@ local ResizeHandle = create("TextButton", {
     ZIndex = 18,
 })
 
-local ResizeLineA = create("Frame", {
-    Parent = ResizeHandle,
-    AnchorPoint = Vector2.new(1, 1),
-    Position = UDim2.new(1, 0, 1, 0),
-    Size = UDim2.fromOffset(10, 2),
-    BackgroundColor3 = Theme.textDim,
-    BorderSizePixel = 0,
-    Rotation = -45,
-    ZIndex = 19,
-})
-registerTheme("textDim", ResizeLineA, "BackgroundColor3")
+do
+    local resizeLineA = create("Frame", {
+        Parent = ResizeHandle,
+        AnchorPoint = Vector2.new(1, 1),
+        Position = UDim2.new(1, 0, 1, 0),
+        Size = UDim2.fromOffset(10, 2),
+        BackgroundColor3 = Theme.textDim,
+        BorderSizePixel = 0,
+        Rotation = -45,
+        ZIndex = 19,
+    })
+    registerTheme("textDim", resizeLineA, "BackgroundColor3")
 
-local ResizeLineB = create("Frame", {
-    Parent = ResizeHandle,
-    AnchorPoint = Vector2.new(1, 1),
-    Position = UDim2.new(1, -3, 1, 0),
-    Size = UDim2.fromOffset(6, 2),
-    BackgroundColor3 = Theme.textDim,
-    BorderSizePixel = 0,
-    Rotation = -45,
-    ZIndex = 19,
-})
-registerTheme("textDim", ResizeLineB, "BackgroundColor3")
+    local resizeLineB = create("Frame", {
+        Parent = ResizeHandle,
+        AnchorPoint = Vector2.new(1, 1),
+        Position = UDim2.new(1, -3, 1, 0),
+        Size = UDim2.fromOffset(6, 2),
+        BackgroundColor3 = Theme.textDim,
+        BorderSizePixel = 0,
+        Rotation = -45,
+        ZIndex = 19,
+    })
+    registerTheme("textDim", resizeLineB, "BackgroundColor3")
+end
 
 local Header = create("Frame", {
     Parent = WindowShell.background,
@@ -617,7 +626,7 @@ local TabHolder = create("Frame", {
     ZIndex = 14,
 })
 
-local TabLayout = create("UIListLayout", {
+create("UIListLayout", {
     Parent = TabHolder,
     FillDirection = Enum.FillDirection.Horizontal,
     Padding = UDim.new(0, 2),
@@ -626,7 +635,7 @@ local TabLayout = create("UIListLayout", {
 
 local ContentShell = addShell(WindowShell.background, UDim2.new(1, -12, 1, -72), UDim2.fromOffset(6, 44), false, 0, 12)
 
-local ContentPadding = create("UIPadding", {
+create("UIPadding", {
     Parent = ContentShell.background,
     PaddingTop = UDim.new(0, 4),
     PaddingBottom = UDim.new(0, 4),
@@ -636,9 +645,7 @@ local ContentPadding = create("UIPadding", {
 ContentShell.background.ClipsDescendants = true
 
 local Tabs = {}
-local TabButtons = {}
 local Sections = {}
-local Rows = {}
 
 local BottomBar = create("Frame", {
     Parent = WindowShell.background,
@@ -678,22 +685,25 @@ registerTheme("textDim", InfoButton, "ImageColor3")
 local SearchShell = addShell(WindowShell.background, UDim2.fromOffset(300, 290), UDim2.new(0, 8, 1, -320), false, 0, 40)
 SearchShell.outline.Visible = false
 
-local SearchBoxShell = addShell(SearchShell.background, UDim2.new(1, -18, 0, 22), UDim2.fromOffset(9, 9), false, 0, 42)
-local SearchInput = create("TextBox", {
-    Parent = SearchBoxShell.background,
-    BackgroundTransparency = 1,
-    Position = UDim2.fromOffset(6, 0),
-    Size = UDim2.new(1, -12, 1, 0),
-    ClearTextOnFocus = false,
-    Font = Enum.Font.GothamMedium,
-    PlaceholderText = "Search name, path or tag",
-    PlaceholderColor3 = Theme.textDim,
-    Text = "",
-    TextColor3 = Theme.text,
-    TextSize = 12,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    ZIndex = 44,
-})
+local SearchInput
+do
+    local searchBoxShell = addShell(SearchShell.background, UDim2.new(1, -18, 0, 22), UDim2.fromOffset(9, 9), false, 0, 42)
+    SearchInput = create("TextBox", {
+        Parent = searchBoxShell.background,
+        BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(6, 0),
+        Size = UDim2.new(1, -12, 1, 0),
+        ClearTextOnFocus = false,
+        Font = Enum.Font.GothamMedium,
+        PlaceholderText = "Search name, path or tag",
+        PlaceholderColor3 = Theme.textDim,
+        Text = "",
+        TextColor3 = Theme.text,
+        TextSize = 12,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 44,
+    })
+end
 registerTheme("text", SearchInput, "TextColor3")
 registerTheme("textDim", SearchInput, "PlaceholderColor3")
 
@@ -713,12 +723,18 @@ local SearchResults = create("ScrollingFrame", {
 })
 registerTheme("accent", SearchResults, "ScrollBarImageColor3")
 
-local SearchResultsLayout = create("UIListLayout", {
-    Parent = SearchResults,
-    FillDirection = Enum.FillDirection.Vertical,
-    Padding = UDim.new(0, 4),
-    SortOrder = Enum.SortOrder.LayoutOrder,
-})
+do
+    local searchResultsLayout = create("UIListLayout", {
+        Parent = SearchResults,
+        FillDirection = Enum.FillDirection.Vertical,
+        Padding = UDim.new(0, 4),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+    })
+
+    searchResultsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        SearchResults.CanvasSize = UDim2.fromOffset(0, searchResultsLayout.AbsoluteContentSize.Y)
+    end)
+end
 
 local SearchEmpty = createThemedText(SearchShell.background, {
     Parent = SearchShell.background,
@@ -736,7 +752,7 @@ local SearchEmpty = createThemedText(SearchShell.background, {
 local SettingsShell = addShell(WindowShell.background, UDim2.fromOffset(168, 114), UDim2.new(1, -174, 0, 26), false, 0, 40)
 SettingsShell.outline.Visible = false
 
-local SettingsTitle = createThemedText(SettingsShell.background, {
+createThemedText(SettingsShell.background, {
     Parent = SettingsShell.background,
     BackgroundTransparency = 1,
     Position = UDim2.fromOffset(8, 6),
@@ -756,7 +772,7 @@ local SettingsHolder = create("Frame", {
     ZIndex = 43,
 })
 
-local SettingsLayout = create("UIListLayout", {
+create("UIListLayout", {
     Parent = SettingsHolder,
     FillDirection = Enum.FillDirection.Vertical,
     Padding = UDim.new(0, 4),
@@ -809,23 +825,25 @@ local WatermarkText = createThemedText(WatermarkShell.background, {
     ZIndex = 33,
 }, false)
 
-local WatermarkPad = create("UIPadding", {
+create("UIPadding", {
     Parent = WatermarkShell.background,
     PaddingLeft = UDim.new(0, 9),
     PaddingRight = UDim.new(0, 9),
 })
 
-local KEYBIND_HEADER_HEIGHT = 20
-local KEYBIND_ROW_HEIGHT = 14
-local KEYBIND_MIN_WIDTH = 140
-local KEYBIND_MAX_WIDTH = 220
-local KEYBIND_BIND_PADDING = 6
-local KEYBIND_NAME_GAP = 8
+local KeybindMetrics = {
+    headerHeight = 20,
+    rowHeight = 14,
+    minWidth = 140,
+    maxWidth = 220,
+    bindPadding = 6,
+    nameGap = 8,
+}
 
-local KeybindShell = addShell(ScreenGui, UDim2.fromOffset(KEYBIND_MIN_WIDTH, KEYBIND_HEADER_HEIGHT), UDim2.fromOffset(52, 210), true, 0, 25)
+local KeybindShell = addShell(ScreenGui, UDim2.fromOffset(KeybindMetrics.minWidth, KeybindMetrics.headerHeight), UDim2.fromOffset(52, 210), true, 0, 25)
 KeybindShell.outline.Visible = true
 
-local KeybindHeader = createThemedText(KeybindShell.background, {
+createThemedText(KeybindShell.background, {
     Parent = KeybindShell.background,
     BackgroundTransparency = 1,
     Size = UDim2.new(1, 0, 1, 0),
@@ -845,7 +863,7 @@ local KeybindList = create("Frame", {
     ZIndex = 28,
 })
 
-local KeybindLayout = create("UIListLayout", {
+create("UIListLayout", {
     Parent = KeybindList,
     FillDirection = Enum.FillDirection.Vertical,
     Padding = UDim.new(0, 1),
@@ -897,22 +915,24 @@ local SatVal = create("Frame", {
 
 applyStroke(SatVal, Theme.outline, 1, 0)
 
-local SatValWhite = create("Frame", {
-    Parent = SatVal,
-    BorderSizePixel = 0,
-    BackgroundColor3 = Color3.new(1, 1, 1),
-    Size = UDim2.fromScale(1, 1),
-    ZIndex = 65,
-})
+do
+    local satValWhite = create("Frame", {
+        Parent = SatVal,
+        BorderSizePixel = 0,
+        BackgroundColor3 = Color3.new(1, 1, 1),
+        Size = UDim2.fromScale(1, 1),
+        ZIndex = 65,
+    })
 
-create("UIGradient", {
-    Parent = SatValWhite,
-    Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.new(1, 1, 1)),
-    Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 0),
-        NumberSequenceKeypoint.new(1, 1),
-    }),
-})
+    create("UIGradient", {
+        Parent = satValWhite,
+        Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.new(1, 1, 1)),
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0),
+            NumberSequenceKeypoint.new(1, 1),
+        }),
+    })
+end
 
 local SatValShade = create("Frame", {
     Parent = SatVal,
@@ -980,14 +1000,17 @@ local HueCursor = create("Frame", {
 
 applyStroke(HueCursor, Theme.outline, 1, 0)
 
-local PickerPreviewShell = addShell(PickerShell.background, UDim2.fromOffset(60, 18), UDim2.fromOffset(7, 168), false, 0, 64)
-local PickerPreview = create("Frame", {
-    Parent = PickerPreviewShell.background,
-    BorderSizePixel = 0,
-    BackgroundColor3 = Theme.accent,
-    Size = UDim2.new(1, 0, 1, 0),
-    ZIndex = 67,
-})
+local PickerPreview
+do
+    local pickerPreviewShell = addShell(PickerShell.background, UDim2.fromOffset(60, 18), UDim2.fromOffset(7, 168), false, 0, 64)
+    PickerPreview = create("Frame", {
+        Parent = pickerPreviewShell.background,
+        BorderSizePixel = 0,
+        BackgroundColor3 = Theme.accent,
+        Size = UDim2.new(1, 0, 1, 0),
+        ZIndex = 67,
+    })
+end
 
 local PickerValue = createThemedText(PickerShell.background, {
     Parent = PickerShell.background,
@@ -1026,25 +1049,29 @@ local BindPopupTitle = createThemedText(BindPopupShell.background, {
     ZIndex = 59,
 }, false)
 
-local BindFieldShell = addShell(BindPopupShell.background, UDim2.new(1, -16, 0, 18), UDim2.fromOffset(8, 22), false, 0, 57)
-local BindFieldText = createThemedText(BindFieldShell.background, {
-    Parent = BindFieldShell.background,
-    BackgroundTransparency = 1,
-    Size = UDim2.new(1, 0, 1, 0),
-    Font = Enum.Font.Code,
-    Text = "click to bind",
-    TextSize = 11,
-    ZIndex = 60,
-}, false)
+local BindFieldText
+local BindFieldButton
+do
+    local bindFieldShell = addShell(BindPopupShell.background, UDim2.new(1, -16, 0, 18), UDim2.fromOffset(8, 22), false, 0, 57)
+    BindFieldText = createThemedText(bindFieldShell.background, {
+        Parent = bindFieldShell.background,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 1, 0),
+        Font = Enum.Font.Code,
+        Text = "click to bind",
+        TextSize = 11,
+        ZIndex = 60,
+    }, false)
 
-local BindFieldButton = create("TextButton", {
-    Parent = BindFieldShell.outline,
-    BackgroundTransparency = 1,
-    Size = UDim2.new(1, 0, 1, 0),
-    Text = "",
-    AutoButtonColor = false,
-    ZIndex = 61,
-})
+    BindFieldButton = create("TextButton", {
+        Parent = bindFieldShell.outline,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 1, 0),
+        Text = "",
+        AutoButtonColor = false,
+        ZIndex = 61,
+    })
+end
 
 local ModeHolder = create("Frame", {
     Parent = BindPopupShell.background,
@@ -1054,7 +1081,7 @@ local ModeHolder = create("Frame", {
     ZIndex = 58,
 })
 
-local ModeLayout = create("UIListLayout", {
+create("UIListLayout", {
     Parent = ModeHolder,
     FillDirection = Enum.FillDirection.Horizontal,
     Padding = UDim.new(0, 4),
@@ -1467,10 +1494,6 @@ createQuickAction("Toggle keybind list", function()
     refreshRows()
 end)
 
-SearchResultsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-    SearchResults.CanvasSize = UDim2.fromOffset(0, SearchResultsLayout.AbsoluteContentSize.Y)
-end)
-
 SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
     rebuildSearchResults(SearchInput.Text)
 end)
@@ -1878,7 +1901,6 @@ local function createTab(id, name, iconAsset, order)
         order = order,
     }
 
-    TabButtons[#TabButtons + 1] = id
     hitbox.MouseButton1Click:Connect(function()
         selectTab(id)
     end)
@@ -1905,7 +1927,7 @@ local function createKeybindEntry(entry)
     local row = create("Frame", {
         Parent = KeybindList,
         BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 0, KEYBIND_ROW_HEIGHT),
+        Size = UDim2.new(1, 0, 0, KeybindMetrics.rowHeight),
         Visible = false,
         ZIndex = 28,
     })
@@ -1929,7 +1951,7 @@ local function createKeybindEntry(entry)
         BackgroundTransparency = 1,
         AnchorPoint = Vector2.new(1, 0),
         Position = UDim2.new(1, 0, 0, 0),
-        Size = UDim2.fromOffset(28, KEYBIND_ROW_HEIGHT),
+        Size = UDim2.fromOffset(28, KeybindMetrics.rowHeight),
         Font = Enum.Font.Code,
         Text = "",
         TextSize = 10,
@@ -2754,26 +2776,26 @@ local function refreshKeybindList()
         end
     end
 
-    local bindBadgeWidth = maxBindWidth > 0 and (maxBindWidth + KEYBIND_BIND_PADDING) or 0
+    local bindBadgeWidth = maxBindWidth > 0 and (maxBindWidth + KeybindMetrics.bindPadding) or 0
     local shellWidth = math.clamp(
-        math.ceil(maxNameWidth + bindBadgeWidth + KEYBIND_NAME_GAP + 10),
-        KEYBIND_MIN_WIDTH,
-        KEYBIND_MAX_WIDTH
+        math.ceil(maxNameWidth + bindBadgeWidth + KeybindMetrics.nameGap + 10),
+        KeybindMetrics.minWidth,
+        KeybindMetrics.maxWidth
     )
 
-    KeybindShell.outline.Size = UDim2.fromOffset(shellWidth, KEYBIND_HEADER_HEIGHT)
+    KeybindShell.outline.Size = UDim2.fromOffset(shellWidth, KeybindMetrics.headerHeight)
     KeybindListShell.outline.Visible = #visibleEntries > 0
-    KeybindListShell.outline.Size = UDim2.new(1, 0, 0, #visibleEntries > 0 and (#visibleEntries * KEYBIND_ROW_HEIGHT + (#visibleEntries - 1) + 5) or 0)
+    KeybindListShell.outline.Size = UDim2.new(1, 0, 0, #visibleEntries > 0 and (#visibleEntries * KeybindMetrics.rowHeight + (#visibleEntries - 1) + 5) or 0)
 
     for index, item in ipairs(visibleEntries) do
         local display = item.entry.keybindDisplay
-        local currentBindWidth = math.max(14, math.ceil(measureText(item.bindText, Enum.Font.Code, 11).X + KEYBIND_BIND_PADDING))
+        local currentBindWidth = math.max(14, math.ceil(measureText(item.bindText, Enum.Font.Code, 11).X + KeybindMetrics.bindPadding))
 
         display.row.Visible = true
         display.row.LayoutOrder = index
         display.label.Text = item.entry.name
-        display.label.Size = UDim2.new(1, -(currentBindWidth + KEYBIND_NAME_GAP), 1, 0)
-        display.bindText.Size = UDim2.fromOffset(currentBindWidth, KEYBIND_ROW_HEIGHT)
+        display.label.Size = UDim2.new(1, -(currentBindWidth + KeybindMetrics.nameGap), 1, 0)
+        display.bindText.Size = UDim2.fromOffset(currentBindWidth, KeybindMetrics.rowHeight)
         display.bindText.Position = UDim2.new(1, 0, 0, 0)
         display.bindText.Text = item.bindText
     end
@@ -3281,9 +3303,7 @@ local function clearWindowState()
     end
 
     table.clear(Tabs)
-    table.clear(TabButtons)
     table.clear(Sections)
-    table.clear(Rows)
     table.clear(TabDefinitions)
     table.clear(Entries)
     table.clear(EntryMap)
