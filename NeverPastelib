@@ -1421,6 +1421,8 @@ local updateShellSize
 local updateWindowRestPosition
 local getMenuHiddenPosition
 local reflowTabButtons
+local relayoutSectionColumn
+local relayoutAllSectionColumns
 local colorToHex
 local openBindPopup
 local getInlineBindText
@@ -2775,19 +2777,73 @@ do
 
 do
 
-updateShellSize = function(section)
+local function getSectionContentHeight(section)
+    return section and section.layout and section.layout.AbsoluteContentSize.Y or 0
+end
+
+local function getSectionFillHeight(section)
+    if not section or not section.column or not section.outline or not section.outline.Parent then
+        return nil
+    end
+
+    local columnHeight = section.column.AbsoluteSize.Y
+    if columnHeight <= 0 then
+        return nil
+    end
+
+    local relativeTop = section.outline.AbsolutePosition.Y - section.column.AbsolutePosition.Y
+    local availableHeight = columnHeight - relativeTop - 29
+    return math.max(0, availableHeight)
+end
+
+updateShellSize = function(section, fillToBottom)
     if not section or not section.layout then
         return
     end
 
-    local contentHeight = section.layout.AbsoluteContentSize.Y
-    local visibleHeight = math.min(contentHeight, section.maxContentHeight or 156)
+    local contentHeight = getSectionContentHeight(section)
+    local visibleHeight
+
+    if fillToBottom and not section.fixedHeight then
+        visibleHeight = getSectionFillHeight(section)
+    end
+
+    if visibleHeight == nil then
+        visibleHeight = math.min(contentHeight, section.maxContentHeight or 156)
+    end
+
     local needsScroll = contentHeight > visibleHeight
 
     section.holder.Size = UDim2.new(1, needsScroll and -4 or -8, 0, visibleHeight)
     section.holder.CanvasSize = UDim2.fromOffset(0, contentHeight > 0 and (contentHeight + 2) or 0)
     section.holder.ScrollBarThickness = needsScroll and 4 or 0
     section.outline.Size = UDim2.new(1, 0, 0, visibleHeight + 29)
+end
+
+relayoutSectionColumn = function(tabId, columnIndex)
+    local sortedSections = {}
+
+    for _, section in pairs(Sections) do
+        if section.tabId == tabId and section.columnIndex == columnIndex then
+            sortedSections[#sortedSections + 1] = section
+        end
+    end
+
+    table.sort(sortedSections, function(left, right)
+        return (left.layoutOrder or 0) < (right.layoutOrder or 0)
+    end)
+
+    for index, section in ipairs(sortedSections) do
+        updateShellSize(section, index == #sortedSections)
+    end
+end
+
+relayoutAllSectionColumns = function()
+    for _, definition in ipairs(TabDefinitions) do
+        for columnIndex = 1, 3 do
+            relayoutSectionColumn(definition.id, columnIndex)
+        end
+    end
 end
 
 local function getAnchoredGuiPosition(guiObject)
@@ -2886,6 +2942,7 @@ local function makeDraggable(handle, target)
 
         if target == Window then
             updateWindowRestPosition(target.Position)
+            relayoutAllSectionColumns()
         end
     end)
 end
@@ -2955,6 +3012,7 @@ local function makeResizable(handle, target, minimumSize)
 
         if target == Window then
             updateWindowRestPosition(target.Position)
+            relayoutAllSectionColumns()
         end
     end)
 end
@@ -2972,9 +3030,17 @@ getSection = function(tabId, columnIndex, name)
 
     local tabFrame = Tabs[tabId]
     local column = tabFrame.columns[columnIndex]
+    local layoutOrder = 1
+
+    for _, existingSection in pairs(Sections) do
+        if existingSection.tabId == tabId and existingSection.columnIndex == columnIndex then
+            layoutOrder = math.max(layoutOrder, (existingSection.layoutOrder or 0) + 1)
+        end
+    end
 
     local shell = addShell(column, UDim2.new(1, 0, 0, 28), UDim2.fromOffset(0, 0), false, 0, 16)
     shell.outline.AutomaticSize = Enum.AutomaticSize.None
+    shell.outline.LayoutOrder = layoutOrder
 
     local title = createThemedText(shell.background, {
         Parent = shell.background,
@@ -3013,20 +3079,28 @@ getSection = function(tabId, columnIndex, name)
     })
 
     layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        updateShellSize(Sections[key])
+        relayoutSectionColumn(tabId, columnIndex)
     end)
 
     local section = {
+        tabId = tabId,
+        columnIndex = columnIndex,
+        column = column,
+        layoutOrder = layoutOrder,
         outline = shell.outline,
         background = shell.background,
         holder = holder,
         layout = layout,
         title = title,
         maxContentHeight = 156,
+        fixedHeight = false,
     }
 
     Sections[key] = section
-    updateShellSize(section)
+    relayoutSectionColumn(tabId, columnIndex)
+    task.defer(function()
+        relayoutSectionColumn(tabId, columnIndex)
+    end)
     return section
 end
 
@@ -3103,11 +3177,12 @@ createTab = function(id, name, iconAsset, order)
 
     local columns = {}
     for index = 1, columnCount do
+        local columnIndex = index
         local columnOffset = math.floor((((index - 1) * columnGap) / columnCount) + 0.5)
         local column = create("Frame", {
             Parent = page,
             BackgroundTransparency = 1,
-            Position = UDim2.new((index - 1) / columnCount, columnOffset, 0, 0),
+            Position = UDim2.new((columnIndex - 1) / columnCount, columnOffset, 0, 0),
             Size = UDim2.new(1 / columnCount, columnWidthOffset, 1, 0),
             AutomaticSize = Enum.AutomaticSize.None,
             ZIndex = 16,
@@ -3120,7 +3195,11 @@ createTab = function(id, name, iconAsset, order)
             SortOrder = Enum.SortOrder.LayoutOrder,
         })
 
-        columns[index] = column
+        column:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+            relayoutSectionColumn(id, columnIndex)
+        end)
+
+        columns[columnIndex] = column
     end
 
     Tabs[id] = {
@@ -3937,6 +4016,12 @@ function selectTab(id)
         tab.page.Visible = selected
         tab.page.Position = UDim2.fromOffset(0, 0)
     end
+
+    task.defer(function()
+        for columnIndex = 1, 3 do
+            relayoutSectionColumn(id, columnIndex)
+        end
+    end)
 end
 
 end
@@ -4982,7 +5067,11 @@ function MenuMethods:AddSection(config)
     local uiSection = getSection(section.tabId, section.column, section.sectionName)
     if config.Height then
         uiSection.maxContentHeight = config.Height
-        updateShellSize(uiSection)
+        uiSection.fixedHeight = true
+        updateShellSize(uiSection, false)
+    else
+        uiSection.fixedHeight = false
+        relayoutSectionColumn(section.tabId, section.column)
     end
 
     return section
