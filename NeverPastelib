@@ -544,7 +544,9 @@ local LastWatermarkTextUpdate = 0
 local WatermarkWidth = 140
 local WindowMinSize = Vector2.new(600, 430)
 local DefaultWindowPosition = UDim2.new(0.5, -96, 0.5, -16)
-local MenuHiddenOffset = Vector2.fromOffset(0, 12)
+local MenuHiddenOffset = Vector2.new(0, 14)
+local MenuShowStartScale = 0.945
+local MenuHideEndScale = 0.965
 local SearchOpen = false
 local InfoOpen = false
 local SettingsOpen = false
@@ -584,7 +586,7 @@ local WindowScale = create("UIScale", {
 
 local WindowRestPosition = DefaultWindowPosition
 
-local ResizeHandle = create("TextButton", {
+WindowShell.resizeHandle = create("TextButton", {
     Parent = Window,
     AnchorPoint = Vector2.new(1, 1),
     Position = UDim2.new(1, 6, 1, 4),
@@ -598,7 +600,7 @@ local ResizeHandle = create("TextButton", {
 
 do
     local resizeLineA = create("Frame", {
-        Parent = ResizeHandle,
+        Parent = WindowShell.resizeHandle,
         AnchorPoint = Vector2.new(1, 1),
         Position = UDim2.new(1, 0, 1, 0),
         Size = UDim2.fromOffset(10, 2),
@@ -610,7 +612,7 @@ do
     registerTheme("textDim", resizeLineA, "BackgroundColor3")
 
     local resizeLineB = create("Frame", {
-        Parent = ResizeHandle,
+        Parent = WindowShell.resizeHandle,
         AnchorPoint = Vector2.new(1, 1),
         Position = UDim2.new(1, -3, 1, 0),
         Size = UDim2.fromOffset(6, 2),
@@ -622,7 +624,7 @@ do
     registerTheme("textDim", resizeLineB, "BackgroundColor3")
 end
 
-local Header = create("Frame", {
+WindowShell.header = create("Frame", {
     Parent = WindowShell.background,
     BackgroundTransparency = 1,
     Size = UDim2.new(1, -12, 0, 20),
@@ -630,8 +632,8 @@ local Header = create("Frame", {
     ZIndex = 14,
 })
 
-local Title = createThemedText(Header, {
-    Parent = Header,
+WindowShell.titleLabel = createThemedText(WindowShell.header, {
+    Parent = WindowShell.header,
     BackgroundTransparency = 1,
     Position = UDim2.fromOffset(2, 0),
     Size = UDim2.new(0, 220, 1, 0),
@@ -643,8 +645,8 @@ local Title = createThemedText(Header, {
     ZIndex = 14,
 }, false)
 
-local TitleRight = createThemedText(Header, {
-    Parent = Header,
+WindowShell.titleRightLabel = createThemedText(WindowShell.header, {
+    Parent = WindowShell.header,
     BackgroundTransparency = 1,
     AnchorPoint = Vector2.new(1, 0),
     Position = UDim2.new(1, -24, 0, 0),
@@ -656,8 +658,8 @@ local TitleRight = createThemedText(Header, {
     ZIndex = 14,
 }, true)
 
-local SettingsButton = create("ImageButton", {
-    Parent = Header,
+WindowShell.settingsButton = create("ImageButton", {
+    Parent = WindowShell.header,
     AnchorPoint = Vector2.new(1, 0.5),
     Position = UDim2.new(1, 0, 0.5, 0),
     Size = UDim2.fromOffset(16, 16),
@@ -668,7 +670,7 @@ local SettingsButton = create("ImageButton", {
     AutoButtonColor = false,
     ZIndex = 15,
 })
-registerTheme("textDim", SettingsButton, "ImageColor3")
+registerTheme("textDim", WindowShell.settingsButton, "ImageColor3")
 
 local TabHolder = create("Frame", {
     Parent = WindowShell.background,
@@ -699,48 +701,51 @@ ContentShell.background.ClipsDescendants = true
 local Tabs = {}
 local Sections = {}
 
-local BottomBar = create("Frame", {
-    Parent = WindowShell.background,
-    BackgroundTransparency = 1,
-    Position = UDim2.new(0, 6, 1, -22),
-    Size = UDim2.new(1, -12, 0, 16),
-    ZIndex = 14,
-})
+local SearchButton
+local InfoButton
+do
+    local bottomBar = create("Frame", {
+        Parent = WindowShell.background,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 6, 1, -22),
+        Size = UDim2.new(1, -12, 0, 16),
+        ZIndex = 14,
+    })
 
-local SearchButton = create("ImageButton", {
-    Parent = BottomBar,
-    BackgroundTransparency = 1,
-    BorderSizePixel = 0,
-    Position = UDim2.fromOffset(0, 0),
-    Size = UDim2.fromOffset(16, 16),
-    Image = IconAssets.search,
-    ImageColor3 = Theme.textDim,
-    AutoButtonColor = false,
-    ZIndex = 15,
-})
-registerTheme("textDim", SearchButton, "ImageColor3")
+    SearchButton = create("ImageButton", {
+        Parent = bottomBar,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.fromOffset(0, 0),
+        Size = UDim2.fromOffset(16, 16),
+        Image = IconAssets.search,
+        ImageColor3 = Theme.textDim,
+        AutoButtonColor = false,
+        ZIndex = 15,
+    })
+    registerTheme("textDim", SearchButton, "ImageColor3")
 
-local InfoButton = create("ImageButton", {
-    Parent = BottomBar,
-    AnchorPoint = Vector2.new(1, 0),
-    BackgroundTransparency = 1,
-    BorderSizePixel = 0,
-    Position = UDim2.new(1, 0, 0, 0),
-    Size = UDim2.fromOffset(16, 16),
-    Image = IconAssets.info,
-    ImageColor3 = Theme.textDim,
-    AutoButtonColor = false,
-    ZIndex = 15,
-})
-registerTheme("textDim", InfoButton, "ImageColor3")
+    InfoButton = create("ImageButton", {
+        Parent = bottomBar,
+        AnchorPoint = Vector2.new(1, 0),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(1, 0, 0, 0),
+        Size = UDim2.fromOffset(16, 16),
+        Image = IconAssets.info,
+        ImageColor3 = Theme.textDim,
+        AutoButtonColor = false,
+        ZIndex = 15,
+    })
+    registerTheme("textDim", InfoButton, "ImageColor3")
+end
 
 local SearchShell = addShell(WindowShell.background, UDim2.fromOffset(300, 290), UDim2.new(0, 8, 1, -320), false, 0, 40)
 SearchShell.outline.Visible = false
 
-local SearchInput
 do
     local searchBoxShell = addShell(SearchShell.background, UDim2.new(1, -18, 0, 22), UDim2.fromOffset(9, 9), false, 0, 42)
-    SearchInput = create("TextBox", {
+    SearchShell.input = create("TextBox", {
         Parent = searchBoxShell.background,
         BackgroundTransparency = 1,
         Position = UDim2.fromOffset(6, 0),
@@ -756,10 +761,10 @@ do
         ZIndex = 44,
     })
 end
-registerTheme("text", SearchInput, "TextColor3")
-registerTheme("textDim", SearchInput, "PlaceholderColor3")
+registerTheme("text", SearchShell.input, "TextColor3")
+registerTheme("textDim", SearchShell.input, "PlaceholderColor3")
 
-local SearchResults = create("ScrollingFrame", {
+SearchShell.results = create("ScrollingFrame", {
     Parent = SearchShell.background,
     BackgroundTransparency = 1,
     BorderSizePixel = 0,
@@ -773,22 +778,22 @@ local SearchResults = create("ScrollingFrame", {
     MidImage = "",
     ZIndex = 43,
 })
-registerTheme("accent", SearchResults, "ScrollBarImageColor3")
+registerTheme("accent", SearchShell.results, "ScrollBarImageColor3")
 
 do
     local searchResultsLayout = create("UIListLayout", {
-        Parent = SearchResults,
+        Parent = SearchShell.results,
         FillDirection = Enum.FillDirection.Vertical,
         Padding = UDim.new(0, 4),
         SortOrder = Enum.SortOrder.LayoutOrder,
     })
 
     searchResultsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        SearchResults.CanvasSize = UDim2.fromOffset(0, searchResultsLayout.AbsoluteContentSize.Y)
+        SearchShell.results.CanvasSize = UDim2.fromOffset(0, searchResultsLayout.AbsoluteContentSize.Y)
     end)
 end
 
-local SearchEmpty = createThemedText(SearchShell.background, {
+SearchShell.emptyLabel = createThemedText(SearchShell.background, {
     Parent = SearchShell.background,
     BackgroundTransparency = 1,
     Position = UDim2.fromOffset(16, 46),
@@ -848,25 +853,25 @@ createThemedText(SettingsShell.background, {
     ZIndex = 44,
 }, false)
 
-local SettingsHolder = create("Frame", {
-    Parent = SettingsShell.background,
-    BackgroundTransparency = 1,
-    Position = UDim2.fromOffset(8, 26),
-    Size = UDim2.new(1, -16, 1, -34),
-    ZIndex = 43,
-})
-
-create("UIListLayout", {
-    Parent = SettingsHolder,
-    FillDirection = Enum.FillDirection.Vertical,
-    Padding = UDim.new(0, 4),
-    SortOrder = Enum.SortOrder.LayoutOrder,
-})
-
 do
+    local settingsHolder = create("Frame", {
+        Parent = SettingsShell.background,
+        BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(8, 26),
+        Size = UDim2.new(1, -16, 1, -34),
+        ZIndex = 43,
+    })
+
+    create("UIListLayout", {
+        Parent = settingsHolder,
+        FillDirection = Enum.FillDirection.Vertical,
+        Padding = UDim.new(0, 4),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+    })
+
     local function createMiniToggleRow(labelText, getter, setter)
         local row = create("TextButton", {
-            Parent = SettingsHolder,
+            Parent = settingsHolder,
             BackgroundTransparency = 1,
             BorderSizePixel = 0,
             Size = UDim2.new(1, 0, 0, 18),
@@ -913,7 +918,7 @@ do
     end
 
     local bindRow = create("TextButton", {
-        Parent = SettingsHolder,
+        Parent = settingsHolder,
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
         Size = UDim2.new(1, 0, 0, 18),
@@ -1005,7 +1010,7 @@ end
 local InfoShell = addShell(WindowShell.background, UDim2.fromOffset(198, 108), UDim2.new(1, -206, 1, -138), false, 0, 40)
 InfoShell.outline.Visible = false
 
-local InfoTitle = createThemedText(InfoShell.background, {
+InfoShell.titleLabel = createThemedText(InfoShell.background, {
     Parent = InfoShell.background,
     BackgroundTransparency = 1,
     Position = UDim2.fromOffset(8, 6),
@@ -1017,7 +1022,7 @@ local InfoTitle = createThemedText(InfoShell.background, {
     ZIndex = 44,
 }, false)
 
-local InfoText = createThemedText(InfoShell.background, {
+InfoShell.bodyText = createThemedText(InfoShell.background, {
     Parent = InfoShell.background,
     BackgroundTransparency = 1,
     Position = UDim2.fromOffset(8, 26),
@@ -1295,21 +1300,6 @@ do
         ZIndex = 61,
     })
 end
-
-local ModeHolder = create("Frame", {
-    Parent = BindPopupShell.background,
-    BackgroundTransparency = 1,
-    Position = UDim2.fromOffset(8, 48),
-    Size = UDim2.new(1, -16, 0, 22),
-    ZIndex = 58,
-})
-
-create("UIListLayout", {
-    Parent = ModeHolder,
-    FillDirection = Enum.FillDirection.Horizontal,
-    Padding = UDim.new(0, 4),
-    SortOrder = Enum.SortOrder.LayoutOrder,
-})
 
 local ModeButtons = {}
 
@@ -1623,7 +1613,7 @@ end
 function closeSearch()
     SearchOpen = false
     SearchShell.outline.Visible = false
-    SearchInput:ReleaseFocus()
+    SearchShell.input:ReleaseFocus()
 end
 
 function closeInfo()
@@ -1771,9 +1761,9 @@ local function toggleSearch()
     if SearchOpen then
         closeInfo()
         closeSettings()
-        SearchInput:CaptureFocus()
+        SearchShell.input:CaptureFocus()
     else
-        SearchInput:ReleaseFocus()
+        SearchShell.input:ReleaseFocus()
     end
 end
 
@@ -1802,7 +1792,7 @@ end
 rebuildSearchResults = function(query)
     local filter = string.lower(query or "")
 
-    for _, child in ipairs(SearchResults:GetChildren()) do
+    for _, child in ipairs(SearchShell.results:GetChildren()) do
         if child:IsA("TextButton") or child:IsA("Frame") then
             child:Destroy()
         end
@@ -1824,7 +1814,7 @@ rebuildSearchResults = function(query)
             resultCount = resultCount + 1
 
             local result = create("TextButton", {
-                Parent = SearchResults,
+                Parent = SearchShell.results,
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0,
                 Size = UDim2.new(1, -4, 0, 30),
@@ -1872,17 +1862,17 @@ rebuildSearchResults = function(query)
         end
     end
 
-    SearchEmpty.Visible = resultCount == 0
-    SearchResults.CanvasSize = UDim2.fromOffset(0, resultCount > 0 and (resultCount * 30) + ((resultCount - 1) * 4) or 0)
+    SearchShell.emptyLabel.Visible = resultCount == 0
+    SearchShell.results.CanvasSize = UDim2.fromOffset(0, resultCount > 0 and (resultCount * 30) + ((resultCount - 1) * 4) or 0)
 end
 
-SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
-    rebuildSearchResults(SearchInput.Text)
+SearchShell.input:GetPropertyChangedSignal("Text"):Connect(function()
+    rebuildSearchResults(SearchShell.input.Text)
 end)
 
 SearchButton.MouseButton1Click:Connect(toggleSearch)
 InfoButton.MouseButton1Click:Connect(toggleInfo)
-SettingsButton.MouseButton1Click:Connect(toggleSettings)
+WindowShell.settingsButton.MouseButton1Click:Connect(toggleSettings)
 
 SearchButton.MouseEnter:Connect(function()
     SearchButton.ImageColor3 = Theme.text
@@ -1898,54 +1888,71 @@ InfoButton.MouseLeave:Connect(function()
     InfoButton.ImageColor3 = Theme.textDim
 end)
 
-SettingsButton.MouseEnter:Connect(function()
-    SettingsButton.ImageColor3 = Theme.text
+WindowShell.settingsButton.MouseEnter:Connect(function()
+    WindowShell.settingsButton.ImageColor3 = Theme.text
 end)
-SettingsButton.MouseLeave:Connect(function()
-    SettingsButton.ImageColor3 = Theme.textDim
+WindowShell.settingsButton.MouseLeave:Connect(function()
+    WindowShell.settingsButton.ImageColor3 = Theme.textDim
 end)
 
-local function createModeButton(modeId, title)
-    local shell = addShell(ModeHolder, UDim2.new(1 / 3, -3, 1, 0), UDim2.fromOffset(0, 0), false, 0, 58)
-    local fill = create("Frame", {
-        Parent = shell.background,
-        BorderSizePixel = 0,
-        BackgroundColor3 = Theme.accent,
-        Size = UDim2.new(1, 0, 1, 0),
+do
+    local modeHolder = create("Frame", {
+        Parent = BindPopupShell.background,
         BackgroundTransparency = 1,
-        ZIndex = 60,
-    })
-    registerTheme("accent", fill, "BackgroundColor3")
-
-    local text = createThemedText(shell.background, {
-        Parent = shell.background,
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 1, 0),
-        Font = Enum.Font.GothamMedium,
-        Text = title,
-        TextSize = 11,
-        ZIndex = 61,
-    }, false)
-
-    local button = create("TextButton", {
-        Parent = shell.outline,
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 1, 0),
-        Text = "",
-        AutoButtonColor = false,
-        ZIndex = 62,
+        Position = UDim2.fromOffset(8, 48),
+        Size = UDim2.new(1, -16, 0, 22),
+        ZIndex = 58,
     })
 
-    ModeButtons[modeId] = {
-        fill = fill,
-        text = text,
-        button = button,
-    }
+    create("UIListLayout", {
+        Parent = modeHolder,
+        FillDirection = Enum.FillDirection.Horizontal,
+        Padding = UDim.new(0, 4),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+    })
+
+    local function createModeButton(modeId, title)
+        local shell = addShell(modeHolder, UDim2.new(1 / 3, -3, 1, 0), UDim2.fromOffset(0, 0), false, 0, 58)
+        local fill = create("Frame", {
+            Parent = shell.background,
+            BorderSizePixel = 0,
+            BackgroundColor3 = Theme.accent,
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            ZIndex = 60,
+        })
+        registerTheme("accent", fill, "BackgroundColor3")
+
+        local text = createThemedText(shell.background, {
+            Parent = shell.background,
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 1, 0),
+            Font = Enum.Font.GothamMedium,
+            Text = title,
+            TextSize = 11,
+            ZIndex = 61,
+        }, false)
+
+        local button = create("TextButton", {
+            Parent = shell.outline,
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 1, 0),
+            Text = "",
+            AutoButtonColor = false,
+            ZIndex = 62,
+        })
+
+        ModeButtons[modeId] = {
+            fill = fill,
+            text = text,
+            button = button,
+        }
+    end
+
+    createModeButton("always", "Always")
+    createModeButton("toggle", "Toggle")
+    createModeButton("hold", "Hold")
 end
-
-createModeButton("always", "Always")
-createModeButton("toggle", "Toggle")
-createModeButton("hold", "Hold")
 
 local function updateShellSize(section)
     if not section or not section.layout then
@@ -2150,10 +2157,10 @@ local function makeResizable(handle, target, minimumSize)
     end)
 end
 
-makeDraggable(Header, Window)
+makeDraggable(WindowShell.header, Window)
 makeDraggable(WatermarkShell.outline, WatermarkShell.outline)
 makeDraggable(KeybindShell.outline, KeybindShell.outline)
-makeResizable(ResizeHandle, Window, WindowMinSize)
+makeResizable(WindowShell.resizeHandle, Window, WindowMinSize)
 
 local function getSection(tabId, columnIndex, name)
     local key = tabId .. "_" .. columnIndex .. "_" .. name
@@ -3145,18 +3152,19 @@ function stopMenuTween()
 end
 
 local function animateMenuVisibility(visible)
-    stopMenuTween()
-
     local restPosition = WindowRestPosition or Window.Position
     local hiddenPosition = getMenuHiddenPosition()
+    local wasVisible = Window.Visible
 
     if visible then
+        stopMenuTween()
         Window.Visible = true
-        Window.Position = hiddenPosition
-        WindowScale.Scale = 0.965
-        Window.BackgroundTransparency = 0
+        if not wasVisible then
+            Window.Position = hiddenPosition
+            WindowScale.Scale = MenuShowStartScale
+        end
 
-        local positionTween = trackMenuTween(tween(Window, 0.24, {
+        trackMenuTween(tween(Window, 0.24, {
             Position = restPosition,
         }, Enum.EasingStyle.Quint))
         local scaleTween = trackMenuTween(tween(WindowScale, 0.24, {
@@ -3169,12 +3177,20 @@ local function animateMenuVisibility(visible)
             WindowScale.Scale = 1
         end))
     else
+        if not wasVisible then
+            Window.Position = restPosition
+            WindowScale.Scale = 1
+            return
+        end
+
+        stopMenuTween()
+
         local positionTween = trackMenuTween(tween(Window, 0.18, {
             Position = hiddenPosition,
-        }, Enum.EasingStyle.Quad))
+        }, Enum.EasingStyle.Quart))
         trackMenuTween(tween(WindowScale, 0.18, {
-            Scale = 0.982,
-        }, Enum.EasingStyle.Quad))
+            Scale = MenuHideEndScale,
+        }, Enum.EasingStyle.Quint))
 
         trackMenuConnection(positionTween.Completed:Connect(function()
             clearMenuTweenState()
@@ -3469,7 +3485,7 @@ Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
             return
         end
 
-        TitleRight.Text = "menu bind: " .. bindToText(MenuToggleBind)
+        WindowShell.titleRightLabel.Text = "menu bind: " .. bindToText(MenuToggleBind)
         if SettingsPanel.refresh then
             SettingsPanel.refresh()
         end
@@ -3569,7 +3585,7 @@ Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
 
         if SettingsOpen
             and not isInsideGui(SettingsShell.outline, inputPosition)
-            and not isInsideGui(SettingsButton, inputPosition) then
+            and not isInsideGui(WindowShell.settingsButton, inputPosition) then
             closeSettings()
         end
     end
@@ -3747,7 +3763,7 @@ local function renderEntry(entry)
 end
 
 local function clearSearchResults()
-    for _, child in ipairs(SearchResults:GetChildren()) do
+    for _, child in ipairs(SearchShell.results:GetChildren()) do
         if child:IsA("TextButton") or child:IsA("Frame") then
             child:Destroy()
         end
@@ -3792,8 +3808,8 @@ local function clearWindowState()
     LastWatermarkTextUpdate = 0
 
     clearSearchResults()
-    SearchInput.Text = ""
-    SearchEmpty.Visible = false
+    SearchShell.input.Text = ""
+    SearchShell.emptyLabel.Visible = false
     WatermarkText.Text = ""
     KeybindShell.outline.Visible = false
     WatermarkShell.outline.Visible = false
@@ -3834,7 +3850,7 @@ local function registerEntry(entry)
     Entries[#Entries + 1] = entry
 
     renderEntry(entry)
-    rebuildSearchResults(SearchInput.Text)
+    rebuildSearchResults(SearchShell.input.Text)
     refreshRows()
     updateWatermark()
 
@@ -4042,7 +4058,7 @@ end
 function WindowMethods:SetMenuBind(bind)
     if typeof(bind) == "EnumItem" then
         MenuToggleBind = bind
-        TitleRight.Text = "menu bind: " .. bindToText(MenuToggleBind)
+        WindowShell.titleRightLabel.Text = "menu bind: " .. bindToText(MenuToggleBind)
         if SettingsPanel.refresh then
             SettingsPanel.refresh()
         end
@@ -4052,7 +4068,7 @@ end
 
 function WindowMethods:SetInfo(text)
     Runtime.info = tostring(text or "")
-    InfoText.Text = Runtime.info
+    InfoShell.bodyText.Text = Runtime.info
     return self
 end
 
@@ -4096,12 +4112,12 @@ function Library.new(config)
     Runtime.showKeybindList = config.KeybindList ~= false
     Runtime.initialized = true
 
-    Title.Text = Runtime.title
-    InfoTitle.Text = Runtime.title .. " Info"
-    InfoText.Text = Runtime.info
+    WindowShell.titleLabel.Text = Runtime.title
+    InfoShell.titleLabel.Text = Runtime.title .. " Info"
+    InfoShell.bodyText.Text = Runtime.info
 
     MenuToggleBind = config.MenuBind or config.Keybind or Enum.KeyCode.Insert
-    TitleRight.Text = "menu bind: " .. bindToText(MenuToggleBind)
+    WindowShell.titleRightLabel.Text = "menu bind: " .. bindToText(MenuToggleBind)
 
     IntroDone = false
     MenuVisible = true
