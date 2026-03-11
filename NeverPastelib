@@ -2031,6 +2031,7 @@ local getMenuHiddenPosition
 local reflowTabButtons
 local colorToHex
 local openBindPopup
+local getInlineBindText
 local CreatedSubsectionHeaders = {}
 
 do
@@ -2752,7 +2753,7 @@ colorToHex = function(color)
     return string.format("#%02X%02X%02X", math.floor(color.R * 255), math.floor(color.G * 255), math.floor(color.B * 255))
 end
 
-local function getInlineBindText(entry)
+getInlineBindText = function(entry)
     if not entry or entry.kind ~= "toggle" then
         return "NONE"
     end
