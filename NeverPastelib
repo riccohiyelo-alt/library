@@ -23,7 +23,28 @@ local Services = {
     Workspace = cloneref(game:GetService("Workspace")),
 }
 
-local LocalPlayer = Services.Players.LocalPlayer
+local function cloneInstance(instance)
+    if typeof(instance) == "Instance" then
+        return cloneref(instance)
+    end
+
+    return instance
+end
+
+local function getCurrentCamera()
+    return cloneInstance(Services.Workspace.CurrentCamera)
+end
+
+local function getViewportSize()
+    local camera = getCurrentCamera()
+    if camera then
+        return camera.ViewportSize
+    end
+
+    return Vector2.new(1920, 1080)
+end
+
+local LocalPlayer = cloneInstance(Services.Players.LocalPlayer)
 if not LocalPlayer then
     return
 end
@@ -59,13 +80,13 @@ local TabIcons = {
     ui = IconAssets.code,
 }
 
-local RootGui = gethui()
-local OldGui = RootGui:FindFirstChild("NeverPasteUI")
+local RootGui = cloneInstance(gethui())
+local OldGui = cloneInstance(RootGui:FindFirstChild("NeverPasteUI"))
 if OldGui then
     OldGui:Destroy()
 end
 
-local OldBlur = Services.Lighting:FindFirstChild("NeverPasteBlur")
+local OldBlur = cloneInstance(Services.Lighting:FindFirstChild("NeverPasteBlur"))
 if OldBlur then
     OldBlur:Destroy()
 end
@@ -307,19 +328,19 @@ local function isInsideGui(guiObject, position)
 end
 
 local function getPing()
-    local network = Services.Stats:FindFirstChild("Network")
-    local serverStats = network and network:FindFirstChild("ServerStatsItem")
+    local network = cloneInstance(Services.Stats:FindFirstChild("Network"))
+    local serverStats = network and cloneInstance(network:FindFirstChild("ServerStatsItem"))
     local candidates = {}
 
     if serverStats then
-        table.insert(candidates, serverStats:FindFirstChild("Data Ping"))
-        table.insert(candidates, serverStats:FindFirstChild("Ping"))
+        table.insert(candidates, cloneInstance(serverStats:FindFirstChild("Data Ping")))
+        table.insert(candidates, cloneInstance(serverStats:FindFirstChild("Ping")))
     end
 
     if network then
         for _, item in ipairs(network:GetDescendants()) do
             if item.Name and string.find(string.lower(item.Name), "ping", 1, true) then
-                table.insert(candidates, item)
+                table.insert(candidates, cloneInstance(item))
             end
         end
     end
@@ -365,7 +386,7 @@ local CachedViewportSize = Vector2.new(1920, 1080)
 local CameraViewportConnection
 
 local function refreshViewportSize()
-    local camera = Services.Workspace.CurrentCamera
+    local camera = getCurrentCamera()
     if camera then
         CachedViewportSize = camera.ViewportSize
     end
@@ -377,7 +398,7 @@ local function attachViewportListener()
         CameraViewportConnection = nil
     end
 
-    local camera = Services.Workspace.CurrentCamera
+    local camera = getCurrentCamera()
     if camera then
         CachedViewportSize = camera.ViewportSize
         CameraViewportConnection = camera:GetPropertyChangedSignal("ViewportSize"):Connect(refreshViewportSize)
@@ -1347,7 +1368,7 @@ local function safeCallback(callback, ...)
 
     local ok, err = pcall(callback, ...)
     if not ok then
-        warn(err)
+        return err
     end
 end
 
@@ -1717,7 +1738,7 @@ refreshDropdownOverlay = function()
     local width = math.max(openEntry.ui.button.AbsoluteSize.X, 132)
     local shellWidth = width + 10
     local height = math.min(contentHeight + 8, 132)
-    local viewport = Services.Workspace.CurrentCamera and Services.Workspace.CurrentCamera.ViewportSize or Vector2.new(1920, 1080)
+    local viewport = getViewportSize()
     local buttonPosition = openEntry.ui.button.AbsolutePosition
     local buttonSize = openEntry.ui.button.AbsoluteSize
     local x = math.clamp(buttonPosition.X, 10, viewport.X - shellWidth - 10)
@@ -3031,7 +3052,7 @@ local function openBindPopup(entry)
     BindPopupListening = false
 
     local rowPosition = entry.ui.row.AbsolutePosition
-    local viewport = Services.Workspace.CurrentCamera and Services.Workspace.CurrentCamera.ViewportSize or Vector2.new(1920, 1080)
+    local viewport = getViewportSize()
     local x = math.clamp(rowPosition.X + 140, 10, viewport.X - 176)
     local y = math.clamp(rowPosition.Y + 18, 10, viewport.Y - 110)
 
@@ -3235,7 +3256,7 @@ local function openPickerFor(entry)
     local previewButton = entry.ui.colorButton
     local previewPosition = previewButton.AbsolutePosition
     local previewSize = previewButton.AbsoluteSize
-    local viewport = Services.Workspace.CurrentCamera and Services.Workspace.CurrentCamera.ViewportSize or Vector2.new(1920, 1080)
+    local viewport = getViewportSize()
 
     local x = math.clamp(previewPosition.X + 1, 10, viewport.X - 186)
     local y = math.clamp(previewPosition.Y + previewSize.Y + 6, 10, viewport.Y - 206)
