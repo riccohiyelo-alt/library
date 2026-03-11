@@ -548,33 +548,45 @@ do
     end
 end
 
-local MenuToggleBind = Enum.KeyCode.Insert
-local MenuVisible = true
-local OpenPicker = nil
-local PickerOpen = false
-local PickerMode = nil
-local CurrentFps = 0
-local CurrentPing = getPing()
-local FpsFrames = 0
-local FpsElapsed = 0
-local IntroDone = false
-local BindPopupEntry = nil
-local BindPopupCurrent = nil
-local BindPopupListening = false
-local ActiveMenuTweens = {}
-local ActiveMenuTweenConnections = {}
-local ActiveHoldEntries = {}
-local LastWatermarkTextUpdate = 0
-local WatermarkWidth = 140
+local MenuState = {
+    toggleBind = Enum.KeyCode.Insert,
+    visible = true,
+    introDone = false,
+    searchOpen = false,
+    infoOpen = false,
+    settingsOpen = false,
+    listeningKeybindEntry = nil,
+    bindPopupEntry = nil,
+    bindPopupCurrent = nil,
+    bindPopupListening = false,
+}
+
+local PickerRuntime = {
+    openEntry = nil,
+    isOpen = false,
+    mode = nil,
+}
+
+local StatsState = {
+    currentFps = 0,
+    currentPing = getPing(),
+    fpsFrames = 0,
+    fpsElapsed = 0,
+    lastWatermarkTextUpdate = 0,
+    watermarkWidth = 140,
+}
+
+local MenuMotion = {
+    tweens = {},
+    connections = {},
+    holdEntries = {},
+}
+
 local WindowMinSize = Vector2.new(600, 430)
 local DefaultWindowPosition = UDim2.new(0.5, -96, 0.5, -16)
 local MenuHiddenOffset = Vector2.new(0, 14)
 local MenuShowStartScale = 0.945
 local MenuHideEndScale = 0.965
-local SearchOpen = false
-local InfoOpen = false
-local SettingsOpen = false
-local ListeningKeybindEntry = nil
 
 local Runtime = {
     initialized = false,
@@ -704,7 +716,7 @@ WindowShell.titleRightLabel = createThemedText(WindowShell.header, {
     Position = UDim2.new(1, -24, 0, 0),
     Size = UDim2.new(0, 216, 1, 0),
     Font = Enum.Font.GothamMedium,
-    Text = "menu bind: " .. bindToText(MenuToggleBind),
+    Text = "menu bind: " .. bindToText(MenuState.toggleBind),
     TextSize = 12,
     TextXAlignment = Enum.TextXAlignment.Right,
     ZIndex = 14,
@@ -1019,8 +1031,8 @@ do
     }, true)
 
     bindRow.MouseButton1Click:Connect(function()
-        ListeningKeybindEntry = nil
-        BindPopupListening = false
+        MenuState.listeningKeybindEntry = nil
+        MenuState.bindPopupListening = false
         SettingsPanel.bindListening = true
         if SettingsPanel.refresh then
             SettingsPanel.refresh()
@@ -1067,7 +1079,7 @@ do
         end
 
         if SettingsPanel.bind and SettingsPanel.bind.value then
-            SettingsPanel.bind.value.Text = SettingsPanel.bindListening and "..." or bindToText(MenuToggleBind)
+            SettingsPanel.bind.value.Text = SettingsPanel.bindListening and "..." or bindToText(MenuState.toggleBind)
             SettingsPanel.bind.value.TextColor3 = SettingsPanel.bindListening and Theme.accent or Theme.textDim
         end
     end
@@ -1386,10 +1398,37 @@ local closeInfo
 local closeSettings
 local closeDropdown
 local refreshDropdownOverlay
+local closeMiniPanels
+local closeConfigMenu
+local toggleSearch
+local toggleInfo
+local toggleSettings
+local toggleConfigMenu
+local getSection
+local createTab
+local createToggleRow
+local createButtonRow
+local createSliderRow
+local createTextboxRow
+local createDropdownRow
+local createKeybindRow
+local createColorRow
+local closeBindPopup
+local closePicker
+local animateMenuVisibility
+local refreshKeybindList
+local updateShellSize
+local updateWindowRestPosition
+local getMenuHiddenPosition
+local reflowTabButtons
+local colorToHex
+local openBindPopup
+local getInlineBindText
 
 local TabDefinitions = {}
 local Entries = {}
 local EntryMap = {}
+local CreatedSubsectionHeaders = {}
 
 local Library = {}
 Library.__index = Library
@@ -1956,31 +1995,41 @@ local function exportConfigData(useDefaults)
     local payload = {
         meta = {
             title = Runtime.title,
-            version = 1,
+            version = 2,
+            directory = ConfigSystem.directory,
         },
-        flags = {},
+        settings = {},
     }
 
     for _, entry in ipairs(Entries) do
         if isConfigEntry(entry) then
-            payload.flags[entry.flag] = getEntryConfigValue(entry, useDefaults)
+            payload.settings[entry.flag] = getEntryConfigValue(entry, useDefaults)
         end
     end
 
     return payload
 end
 
+local refreshConfigControls
+local resetConfigDeleteState
+
 local function applyConfigData(payload)
     if type(payload) ~= "table" then
         return false, "invalid config payload"
     end
 
-    local flags = type(payload.flags) == "table" and payload.flags or payload
-    if type(flags) ~= "table" then
-        return false, "config has no flags"
+    local settings = payload
+    if type(payload.settings) == "table" then
+        settings = payload.settings
+    elseif type(payload.flags) == "table" then
+        settings = payload.flags
     end
 
-    for flag, value in pairs(flags) do
+    if type(settings) ~= "table" then
+        return false, "config has no settings"
+    end
+
+    for flag, value in pairs(settings) do
         local entry = EntryMap[flag]
         if isConfigEntry(entry) then
             setEntryValue(entry, value, true)
@@ -1989,10 +2038,12 @@ local function applyConfigData(payload)
 
     refreshRows()
     updateWatermark()
+    resetConfigDeleteState()
+    if refreshConfigControls and ConfigSystem.menuBuilt then
+        refreshConfigControls(ConfigSystem.selectedName, false)
+    end
     return true
 end
-
-local refreshConfigControls
 
 local function setConfigInputText(value)
     if not ConfigSystem.inputBox then
@@ -2004,7 +2055,7 @@ local function setConfigInputText(value)
     ConfigSystem.syncing = false
 end
 
-local function resetConfigDeleteState()
+resetConfigDeleteState = function()
     ConfigSystem.deleteConfirmName = nil
     if ConfigSystem.deleteLabel then
         ConfigSystem.deleteLabel.Text = "Delete"
@@ -2162,7 +2213,43 @@ local function getRequestedConfigName(preferSelected)
     return nil
 end
 
-do
+local function createConfigPopupButton(parent, text, position, size)
+    local shell = addShell(parent, size, position, false, 0, 42)
+    local label = createThemedText(shell.background, {
+        Parent = shell.background,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 1, 0),
+        Font = Enum.Font.GothamMedium,
+        Text = text,
+        TextSize = 11,
+        ZIndex = 45,
+    }, false)
+
+    local button = create("TextButton", {
+        Parent = shell.outline,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 1, 0),
+        Text = "",
+        AutoButtonColor = false,
+        ZIndex = 46,
+    })
+
+    button.MouseEnter:Connect(function()
+        shell.background.BackgroundColor3 = Theme.high
+    end)
+
+    button.MouseLeave:Connect(function()
+        shell.background.BackgroundColor3 = Theme.low
+    end)
+
+    return {
+        shell = shell,
+        label = label,
+        button = button,
+    }
+end
+
+local function initializeConfigPanel()
     local configShell = addShell(WindowShell.background, UDim2.fromOffset(248, 224), UDim2.new(0, 8, 1, -252), false, 0, 40)
     configShell.outline.Visible = false
     configShell.outline.ClipsDescendants = true
@@ -2238,42 +2325,6 @@ do
     registerTheme("text", inputBox, "TextColor3")
     registerTheme("textDim", inputBox, "PlaceholderColor3")
 
-    local function createConfigPopupButton(parent, text, position, size)
-        local shell = addShell(parent, size, position, false, 0, 42)
-        local label = createThemedText(shell.background, {
-            Parent = shell.background,
-            BackgroundTransparency = 1,
-            Size = UDim2.new(1, 0, 1, 0),
-            Font = Enum.Font.GothamMedium,
-            Text = text,
-            TextSize = 11,
-            ZIndex = 45,
-        }, false)
-
-        local button = create("TextButton", {
-            Parent = shell.outline,
-            BackgroundTransparency = 1,
-            Size = UDim2.new(1, 0, 1, 0),
-            Text = "",
-            AutoButtonColor = false,
-            ZIndex = 46,
-        })
-
-        button.MouseEnter:Connect(function()
-            shell.background.BackgroundColor3 = Theme.high
-        end)
-
-        button.MouseLeave:Connect(function()
-            shell.background.BackgroundColor3 = Theme.low
-        end)
-
-        return {
-            shell = shell,
-            label = label,
-            button = button,
-        }
-    end
-
     local loadButton = createConfigPopupButton(configShell.background, "Load", UDim2.fromOffset(9, 174), UDim2.fromOffset(70, 18))
     local saveButton = createConfigPopupButton(configShell.background, "Save", UDim2.fromOffset(86, 174), UDim2.fromOffset(70, 18))
     local createButton = createConfigPopupButton(configShell.background, "Create", UDim2.fromOffset(163, 174), UDim2.fromOffset(76, 18))
@@ -2294,45 +2345,24 @@ do
     ConfigSystem.button = ConfigButton
 end
 
+initializeConfigPanel()
+
 do
-local closeMiniPanels
-local closeConfigMenu
-local getSection
-local createTab
-local createToggleRow
-local createButtonRow
-local createSliderRow
-local createTextboxRow
-local createDropdownRow
-local createKeybindRow
-local createColorRow
-local closeBindPopup
-local closePicker
-local animateMenuVisibility
-local refreshKeybindList
-local updateShellSize
-local updateWindowRestPosition
-local getMenuHiddenPosition
-local reflowTabButtons
-local colorToHex
-local openBindPopup
-local getInlineBindText
-local CreatedSubsectionHeaders = {}
 
 do
 function closeSearch()
-    SearchOpen = false
+    MenuState.searchOpen = false
     SearchShell.outline.Visible = false
     SearchShell.input:ReleaseFocus()
 end
 
 function closeInfo()
-    InfoOpen = false
+    MenuState.infoOpen = false
     InfoShell.outline.Visible = false
 end
 
 function closeSettings()
-    SettingsOpen = false
+    MenuState.settingsOpen = false
     SettingsShell.outline.Visible = false
     SettingsPanel.bindListening = false
     if SettingsPanel.refresh then
@@ -2478,10 +2508,10 @@ end
 
 do
 
-local function toggleSearch()
-    SearchOpen = not SearchOpen
-    SearchShell.outline.Visible = SearchOpen
-    if SearchOpen then
+toggleSearch = function()
+    MenuState.searchOpen = not MenuState.searchOpen
+    SearchShell.outline.Visible = MenuState.searchOpen
+    if MenuState.searchOpen then
         closeInfo()
         closeSettings()
         SearchShell.input:CaptureFocus()
@@ -2490,19 +2520,19 @@ local function toggleSearch()
     end
 end
 
-local function toggleInfo()
-    InfoOpen = not InfoOpen
-    InfoShell.outline.Visible = InfoOpen
-    if InfoOpen then
+toggleInfo = function()
+    MenuState.infoOpen = not MenuState.infoOpen
+    InfoShell.outline.Visible = MenuState.infoOpen
+    if MenuState.infoOpen then
         closeSearch()
         closeSettings()
     end
 end
 
-local function toggleSettings()
-    SettingsOpen = not SettingsOpen
-    SettingsShell.outline.Visible = SettingsOpen
-    if SettingsOpen then
+toggleSettings = function()
+    MenuState.settingsOpen = not MenuState.settingsOpen
+    SettingsShell.outline.Visible = MenuState.settingsOpen
+    if MenuState.settingsOpen then
         closeSearch()
         closeInfo()
         closeConfigMenu()
@@ -2513,7 +2543,11 @@ local function toggleSettings()
     end
 end
 
-local function toggleConfigMenu()
+end
+
+do
+
+toggleConfigMenu = function()
     if not ConfigSystem.shell then
         return
     end
@@ -2534,6 +2568,10 @@ local function toggleConfigMenu()
         ConfigSystem.inputBox:ReleaseFocus()
     end
 end
+
+end
+
+do
 
 rebuildSearchResults = function(query)
     local filter = string.lower(query or "")
@@ -2743,11 +2781,12 @@ updateShellSize = function(section)
     end
 
     local contentHeight = section.layout.AbsoluteContentSize.Y
-    local visibleHeight = math.min(contentHeight, section.maxContentHeight or 110)
+    local visibleHeight = math.min(contentHeight, section.maxContentHeight or 156)
+    local needsScroll = contentHeight > visibleHeight
 
-    section.holder.Size = UDim2.new(1, -8, 0, visibleHeight)
-    section.holder.CanvasSize = UDim2.new(0, 0, 0, contentHeight)
-    section.holder.ScrollBarThickness = contentHeight > visibleHeight and 4 or 0
+    section.holder.Size = UDim2.new(1, needsScroll and -4 or -8, 0, visibleHeight)
+    section.holder.CanvasSize = UDim2.fromOffset(0, contentHeight > 0 and (contentHeight + 2) or 0)
+    section.holder.ScrollBarThickness = needsScroll and 4 or 0
     section.outline.Size = UDim2.new(1, 0, 0, visibleHeight + 29)
 end
 
@@ -2983,7 +3022,7 @@ getSection = function(tabId, columnIndex, name)
         holder = holder,
         layout = layout,
         title = title,
-        maxContentHeight = 110,
+        maxContentHeight = 156,
     }
 
     Sections[key] = section
@@ -3335,8 +3374,8 @@ createToggleRow = function(entry)
 
     if colorButton then
         colorButton.MouseButton1Click:Connect(function()
-            OpenPicker = entry
-            PickerOpen = true
+            PickerRuntime.openEntry = entry
+            PickerRuntime.isOpen = true
         end)
     end
 
@@ -3348,8 +3387,12 @@ createToggleRow = function(entry)
     end)
 
     row.MouseButton2Click:Connect(function()
-        BindPopupEntry = BindPopupCurrent == entry and nil or entry
-        BindPopupListening = false
+        if MenuState.bindPopupCurrent == entry then
+            MenuState.bindPopupEntry = nil
+        else
+            MenuState.bindPopupEntry = entry
+        end
+        MenuState.bindPopupListening = false
     end)
 
     row.MouseEnter:Connect(function()
@@ -3796,13 +3839,13 @@ createKeybindRow = function(entry)
     end)
 
     row.MouseButton1Click:Connect(function()
-        ListeningKeybindEntry = entry
+        MenuState.listeningKeybindEntry = entry
         refreshRows()
     end)
 
     row.MouseButton2Click:Connect(function()
         entry.bind = nil
-        ListeningKeybindEntry = nil
+        MenuState.listeningKeybindEntry = nil
         safeCallback(entry.changed, entry.bind)
         refreshRows()
     end)
@@ -3859,8 +3902,8 @@ createColorRow = function(entry)
     }
 
     colorButton.MouseButton1Click:Connect(function()
-        OpenPicker = entry
-        PickerOpen = true
+        PickerRuntime.openEntry = entry
+        PickerRuntime.isOpen = true
     end)
 end
 
@@ -3905,15 +3948,15 @@ local function getBindDisplayText(entry)
 end
 
 local function updateBindPopup()
-    if not BindPopupCurrent then
+    if not MenuState.bindPopupCurrent then
         return
     end
 
-    BindPopupTitle.Text = BindPopupCurrent.name .. " Bind"
-    BindFieldText.Text = BindPopupListening and "press any key..." or getBindDisplayText(BindPopupCurrent)
+    BindPopupTitle.Text = MenuState.bindPopupCurrent.name .. " Bind"
+    BindFieldText.Text = MenuState.bindPopupListening and "press any key..." or getBindDisplayText(MenuState.bindPopupCurrent)
 
     for modeId, data in pairs(ModeButtons) do
-        local selected = BindPopupCurrent.mode == modeId
+        local selected = MenuState.bindPopupCurrent.mode == modeId
         data.fill.BackgroundTransparency = selected and 0 or 1
         data.text.TextColor3 = selected and Theme.outline or Theme.text
     end
@@ -3923,13 +3966,13 @@ openBindPopup = function(entry)
     if not entry or not entry.ui or not entry.ui.row then
         BindPopupShell.outline.Visible = false
         BindOverlay.Visible = false
-        BindPopupCurrent = nil
-        BindPopupListening = false
+        MenuState.bindPopupCurrent = nil
+        MenuState.bindPopupListening = false
         return
     end
 
-    BindPopupCurrent = entry
-    BindPopupListening = false
+    MenuState.bindPopupCurrent = entry
+    MenuState.bindPopupListening = false
 
     local rowPosition = entry.ui.row.AbsolutePosition
     local viewport = getViewportSize()
@@ -3945,23 +3988,23 @@ end
 closeBindPopup = function()
     BindPopupShell.outline.Visible = false
     BindOverlay.Visible = false
-    BindPopupCurrent = nil
-    BindPopupListening = false
-    BindPopupEntry = nil
+    MenuState.bindPopupCurrent = nil
+    MenuState.bindPopupListening = false
+    MenuState.bindPopupEntry = nil
 end
 
 closePicker = function()
     PickerShell.outline.Visible = false
     PickerOverlay.Visible = false
     PickerState.target = nil
-    OpenPicker = nil
-    PickerOpen = false
-    PickerMode = nil
+    PickerRuntime.openEntry = nil
+    PickerRuntime.isOpen = false
+    PickerRuntime.mode = nil
 end
 
 local function trackMenuTween(tweenObject)
     if tweenObject then
-        ActiveMenuTweens[#ActiveMenuTweens + 1] = tweenObject
+        MenuMotion.tweens[#MenuMotion.tweens + 1] = tweenObject
     end
 
     return tweenObject
@@ -3969,23 +4012,23 @@ end
 
 local function trackMenuConnection(connection)
     if connection then
-        ActiveMenuTweenConnections[#ActiveMenuTweenConnections + 1] = connection
+        MenuMotion.connections[#MenuMotion.connections + 1] = connection
     end
 
     return connection
 end
 
 local function clearMenuTweenState()
-    for _, connection in ipairs(ActiveMenuTweenConnections) do
+    for _, connection in ipairs(MenuMotion.connections) do
         connection:Disconnect()
     end
 
-    table.clear(ActiveMenuTweens)
-    table.clear(ActiveMenuTweenConnections)
+    table.clear(MenuMotion.tweens)
+    table.clear(MenuMotion.connections)
 end
 
 function stopMenuTween()
-    for _, tweenObject in ipairs(ActiveMenuTweens) do
+    for _, tweenObject in ipairs(MenuMotion.tweens) do
         tweenObject:Cancel()
     end
 
@@ -4051,21 +4094,21 @@ BindOverlay.InputBegan:Connect(function(input)
 end)
 
 BindFieldButton.MouseButton1Click:Connect(function()
-    if not BindPopupCurrent then
+    if not MenuState.bindPopupCurrent then
         return
     end
 
-    BindPopupListening = true
+    MenuState.bindPopupListening = true
     updateBindPopup()
 end)
 
 for modeId, data in pairs(ModeButtons) do
     data.button.MouseButton1Click:Connect(function()
-        if not BindPopupCurrent then
+        if not MenuState.bindPopupCurrent then
             return
         end
 
-        BindPopupCurrent.mode = modeId
+        MenuState.bindPopupCurrent.mode = modeId
         updateBindPopup()
         refreshRows()
         updateWatermark()
@@ -4073,7 +4116,7 @@ for modeId, data in pairs(ModeButtons) do
 end
 
 refreshKeybindList = function()
-    local visible = IntroDone and Runtime.showKeybindList
+    local visible = MenuState.introDone and Runtime.showKeybindList
     KeybindShell.outline.Visible = visible
     local visibleEntries = {}
     local maxNameWidth = measureText("Keybinds", Enum.Font.GothamMedium, 11).X
@@ -4130,7 +4173,7 @@ function refreshRows()
             entry.ui.fill.BackgroundTransparency = entry.state and 0 or 1
             if entry.ui.bindText then
                 entry.ui.bindText.Text = formatToggleBindText(entry)
-                entry.ui.bindText.TextColor3 = BindPopupCurrent == entry and entry.color or (entry.mode == "always" and entry.color or Theme.textDim)
+                entry.ui.bindText.TextColor3 = MenuState.bindPopupCurrent == entry and entry.color or (entry.mode == "always" and entry.color or Theme.textDim)
             end
             if entry.ui.colorDisplay then
                 entry.ui.colorDisplay.BackgroundColor3 = entry.color
@@ -4161,14 +4204,14 @@ function refreshRows()
             entry.ui.row.Size = UDim2.new(1, -2, 0, 16)
         elseif entry.kind == "keybind" and entry.ui then
             entry.ui.label.TextColor3 = Theme.text
-            entry.ui.bindText.Text = ListeningKeybindEntry == entry and "..." or bindToText(entry.bind)
-            entry.ui.bindText.TextColor3 = ListeningKeybindEntry == entry and Theme.accent or Theme.textDim
+            entry.ui.bindText.Text = MenuState.listeningKeybindEntry == entry and "..." or bindToText(entry.bind)
+            entry.ui.bindText.TextColor3 = MenuState.listeningKeybindEntry == entry and Theme.accent or Theme.textDim
         elseif entry.kind == "button" and entry.ui then
             entry.ui.label.TextColor3 = Theme.text
         end
     end
 
-    if BindPopupCurrent then
+    if MenuState.bindPopupCurrent then
         updateBindPopup()
     end
 
@@ -4181,26 +4224,26 @@ function refreshRows()
 end
 
 function updateWatermark()
-    local visible = IntroDone and Runtime.showWatermark
+    local visible = MenuState.introDone and Runtime.showWatermark
     local watermarkColor = Theme.accent
     local now = time()
 
     WatermarkShell.outline.Visible = visible
     WatermarkShell.accent.BackgroundColor3 = watermarkColor
 
-    if visible and (now - LastWatermarkTextUpdate >= 1 or WatermarkText.Text == "") then
+    if visible and (now - StatsState.lastWatermarkTextUpdate >= 1 or WatermarkText.Text == "") then
         WatermarkText.Text = string.format(
             "  %s | %s : %s : %s : %d FPS : %d MS  ",
             Runtime.title,
             LocalPlayer.Name,
             placeName,
             os.date("%H:%M:%S"),
-            CurrentFps,
-            CurrentPing
+            StatsState.currentFps,
+            StatsState.currentPing
         )
-        WatermarkWidth = math.max(WatermarkWidth, WatermarkText.TextBounds.X + 16)
-        WatermarkShell.outline.Size = UDim2.fromOffset(WatermarkWidth, 24)
-        LastWatermarkTextUpdate = now
+        StatsState.watermarkWidth = math.max(StatsState.watermarkWidth, WatermarkText.TextBounds.X + 16)
+        WatermarkShell.outline.Size = UDim2.fromOffset(StatsState.watermarkWidth, 24)
+        StatsState.lastWatermarkTextUpdate = now
     end
 end
 
@@ -4284,7 +4327,7 @@ local function beginPickerDrag(frame, mode)
             return
         end
 
-        PickerMode = mode
+        PickerRuntime.mode = mode
         setPickerFromInput(input, mode)
     end)
 end
@@ -4298,23 +4341,23 @@ Services.UserInputService.InputChanged:Connect(function(input)
         return
     end
 
-    if PickerMode == "sv" then
+    if PickerRuntime.mode == "sv" then
         setPickerFromInput(input, "sv")
-    elseif PickerMode == "hue" then
+    elseif PickerRuntime.mode == "hue" then
         setPickerFromInput(input, "hue")
     end
 end)
 
 Services.UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        PickerMode = nil
+        PickerRuntime.mode = nil
     end
 
     local changedHold = false
-    for entry in pairs(ActiveHoldEntries) do
+    for entry in pairs(MenuMotion.holdEntries) do
         if inputMatchesBind(entry.bind, input) then
             entry.state = false
-            ActiveHoldEntries[entry] = nil
+            MenuMotion.holdEntries[entry] = nil
             safeCallback(entry.callback, entry.state)
             changedHold = true
         end
@@ -4331,52 +4374,52 @@ Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if input.KeyCode == Enum.KeyCode.Escape then
             SettingsPanel.bindListening = false
         elseif input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode ~= Enum.KeyCode.Unknown then
-            MenuToggleBind = input.KeyCode
+            MenuState.toggleBind = input.KeyCode
             SettingsPanel.bindListening = false
         elseif input.UserInputType == Enum.UserInputType.MouseButton2
             or input.UserInputType == Enum.UserInputType.MouseButton3 then
-            MenuToggleBind = input.UserInputType
+            MenuState.toggleBind = input.UserInputType
             SettingsPanel.bindListening = false
         else
             return
         end
 
-        WindowShell.titleRightLabel.Text = "menu bind: " .. bindToText(MenuToggleBind)
+        WindowShell.titleRightLabel.Text = "menu bind: " .. bindToText(MenuState.toggleBind)
         if SettingsPanel.refresh then
             SettingsPanel.refresh()
         end
         return
     end
 
-    if ListeningKeybindEntry then
+    if MenuState.listeningKeybindEntry then
         if input.KeyCode == Enum.KeyCode.Escape then
-            ListeningKeybindEntry.bind = nil
+            MenuState.listeningKeybindEntry.bind = nil
         elseif input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode ~= Enum.KeyCode.Unknown then
-            ListeningKeybindEntry.bind = input.KeyCode
+            MenuState.listeningKeybindEntry.bind = input.KeyCode
         elseif input.UserInputType == Enum.UserInputType.MouseButton2
             or input.UserInputType == Enum.UserInputType.MouseButton3 then
-            ListeningKeybindEntry.bind = input.UserInputType
+            MenuState.listeningKeybindEntry.bind = input.UserInputType
         else
             return
         end
 
-        safeCallback(ListeningKeybindEntry.changed, ListeningKeybindEntry.bind)
-        ListeningKeybindEntry = nil
+        safeCallback(MenuState.listeningKeybindEntry.changed, MenuState.listeningKeybindEntry.bind)
+        MenuState.listeningKeybindEntry = nil
         refreshRows()
         return
     end
 
-    if BindPopupCurrent and BindPopupListening then
+    if MenuState.bindPopupCurrent and MenuState.bindPopupListening then
         if input.KeyCode == Enum.KeyCode.Escape then
-            BindPopupCurrent.bind = nil
+            MenuState.bindPopupCurrent.bind = nil
             closeBindPopup()
         elseif input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode ~= Enum.KeyCode.Unknown then
-            BindPopupCurrent.bind = input.KeyCode
-            BindPopupListening = false
+            MenuState.bindPopupCurrent.bind = input.KeyCode
+            MenuState.bindPopupListening = false
         elseif input.UserInputType == Enum.UserInputType.MouseButton2
             or input.UserInputType == Enum.UserInputType.MouseButton3 then
-            BindPopupCurrent.bind = input.UserInputType
-            BindPopupListening = false
+            MenuState.bindPopupCurrent.bind = input.UserInputType
+            MenuState.bindPopupListening = false
         end
 
         refreshRows()
@@ -4427,19 +4470,19 @@ Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
         or input.UserInputType == Enum.UserInputType.Touch then
         local inputPosition = Vector2.new(input.Position.X, input.Position.Y)
 
-        if SearchOpen
+        if MenuState.searchOpen
             and not isInsideGui(SearchShell.outline, inputPosition)
             and not isInsideGui(SearchButton, inputPosition) then
             closeSearch()
         end
 
-        if InfoOpen
+        if MenuState.infoOpen
             and not isInsideGui(InfoShell.outline, inputPosition)
             and not isInsideGui(InfoButton, inputPosition) then
             closeInfo()
         end
 
-        if SettingsOpen
+        if MenuState.settingsOpen
             and not isInsideGui(SettingsShell.outline, inputPosition)
             and not isInsideGui(WindowShell.settingsButton, inputPosition) then
             closeSettings()
@@ -4457,17 +4500,17 @@ Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
         return
     end
 
-    if input.KeyCode == MenuToggleBind then
-        MenuVisible = not MenuVisible
+    if input.KeyCode == MenuState.toggleBind then
+        MenuState.visible = not MenuState.visible
 
-        if MenuVisible then
+        if MenuState.visible then
             animateMenuVisibility(true)
         else
             closePicker()
             closeDropdown()
             closeBindPopup()
             closeMiniPanels()
-            table.clear(ActiveHoldEntries)
+            table.clear(MenuMotion.holdEntries)
             animateMenuVisibility(false)
         end
 
@@ -4489,7 +4532,7 @@ Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
         return
     end
 
-    if input.KeyCode == Enum.KeyCode.Escape and (SearchOpen or InfoOpen or SettingsOpen) then
+    if input.KeyCode == Enum.KeyCode.Escape and (MenuState.searchOpen or MenuState.infoOpen or MenuState.settingsOpen) then
         closeMiniPanels()
         return
     end
@@ -4503,7 +4546,7 @@ Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if entry.kind == "toggle" and entry.mode ~= "always" and inputMatchesBind(entry.bind, input) then
             if entry.mode == "hold" then
                 entry.state = true
-                ActiveHoldEntries[entry] = true
+                MenuMotion.holdEntries[entry] = true
             else
                 entry.state = not entry.state
             end
@@ -4518,28 +4561,28 @@ Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 Services.RunService.RenderStepped:Connect(function(deltaTime)
-    FpsFrames = FpsFrames + 1
-    FpsElapsed = FpsElapsed + deltaTime
+    StatsState.fpsFrames = StatsState.fpsFrames + 1
+    StatsState.fpsElapsed = StatsState.fpsElapsed + deltaTime
 
-    if FpsElapsed >= 2 then
-        CurrentFps = math.floor(FpsFrames / FpsElapsed + 0.5)
-        CurrentPing = getPing()
-        FpsFrames = 0
-        FpsElapsed = 0
+    if StatsState.fpsElapsed >= 2 then
+        StatsState.currentFps = math.floor(StatsState.fpsFrames / StatsState.fpsElapsed + 0.5)
+        StatsState.currentPing = getPing()
+        StatsState.fpsFrames = 0
+        StatsState.fpsElapsed = 0
     end
 
-    if PickerOpen then
-        if OpenPicker ~= PickerState.target then
-            openPickerFor(OpenPicker)
+    if PickerRuntime.isOpen then
+        if PickerRuntime.openEntry ~= PickerState.target then
+            openPickerFor(PickerRuntime.openEntry)
             updatePickerVisual()
         end
     elseif PickerState.target then
         closePicker()
     end
 
-    if BindPopupEntry ~= BindPopupCurrent then
-        if BindPopupEntry then
-            openBindPopup(BindPopupEntry)
+    if MenuState.bindPopupEntry ~= MenuState.bindPopupCurrent then
+        if MenuState.bindPopupEntry then
+            openBindPopup(MenuState.bindPopupEntry)
         else
             closeBindPopup()
         end
@@ -4611,7 +4654,7 @@ playIntro = function()
     Window.Position = getMenuHiddenPosition()
     WindowScale.Scale = 0.965
     animateMenuVisibility(true)
-    IntroDone = true
+    MenuState.introDone = true
 end
 
 end
@@ -4650,9 +4693,9 @@ clearWindowState = function()
     closeBindPopup()
     closeMiniPanels()
 
-    ListeningKeybindEntry = nil
+    MenuState.listeningKeybindEntry = nil
     SettingsPanel.bindListening = false
-    table.clear(ActiveHoldEntries)
+    table.clear(MenuMotion.holdEntries)
 
     for _, entry in ipairs(Entries) do
         if entry.keybindDisplay and entry.keybindDisplay.row and entry.keybindDisplay.row.Parent then
@@ -4678,8 +4721,8 @@ clearWindowState = function()
 
     DefaultTabId = nil
     CurrentTab = nil
-    WatermarkWidth = 140
-    LastWatermarkTextUpdate = 0
+    StatsState.watermarkWidth = 140
+    StatsState.lastWatermarkTextUpdate = 0
 
     clearSearchResults()
     SearchShell.input.Text = ""
@@ -5211,8 +5254,8 @@ end
 
 function WindowMethods:SetMenuBind(bind)
     if typeof(bind) == "EnumItem" then
-        MenuToggleBind = bind
-        WindowShell.titleRightLabel.Text = "menu bind: " .. bindToText(MenuToggleBind)
+        MenuState.toggleBind = bind
+        WindowShell.titleRightLabel.Text = "menu bind: " .. bindToText(MenuState.toggleBind)
         if SettingsPanel.refresh then
             SettingsPanel.refresh()
         end
@@ -5287,11 +5330,11 @@ function Library.new(config)
     InfoShell.titleLabel.Text = Runtime.title .. " Info"
     InfoShell.bodyText.Text = Runtime.info
 
-    MenuToggleBind = config.MenuBind or config.Keybind or Enum.KeyCode.Insert
-    WindowShell.titleRightLabel.Text = "menu bind: " .. bindToText(MenuToggleBind)
+    MenuState.toggleBind = config.MenuBind or config.Keybind or Enum.KeyCode.Insert
+    WindowShell.titleRightLabel.Text = "menu bind: " .. bindToText(MenuState.toggleBind)
 
-    IntroDone = false
-    MenuVisible = true
+    MenuState.introDone = false
+    MenuState.visible = true
     stopMenuTween()
     updateWindowRestPosition(DefaultWindowPosition)
     Window.Visible = false
@@ -5305,7 +5348,7 @@ function Library.new(config)
     updateWatermark()
 
     if config.Intro == false or not (Intro and Intro.Parent and Blur and Blur.Parent) then
-        IntroDone = true
+        MenuState.introDone = true
         Window.Visible = true
         Window.BackgroundTransparency = 0
         Window.Position = WindowRestPosition
@@ -5403,7 +5446,7 @@ WindowScale.Scale = 1
 Window.BackgroundTransparency = 1
 WatermarkShell.outline.Visible = false
 KeybindShell.outline.Visible = false
-IntroDone = false
-MenuVisible = false
+MenuState.introDone = false
+MenuState.visible = false
 
 return Library
