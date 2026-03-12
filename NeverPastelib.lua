@@ -62,7 +62,7 @@ end
 -- if string.find(executorName, "solara") or string.find(executorName, "xeno") then
 --    LocalPlayer:Kick("XENO AND SOLARA IS UNSUPPORTED BROTHER!!!")
 --    return
---end
+-- end
 
 local Theme = {
     outline = Color3.fromRGB(8, 15, 22),
