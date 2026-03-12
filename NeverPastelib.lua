@@ -46,6 +46,18 @@ local function getCurrentCamera()
     return cloneInstance(Services.Workspace.CurrentCamera)
 end
 
+local function tryGetEnumItem(enumObject, itemName)
+    local ok, item = pcall(function()
+        return enumObject[itemName]
+    end)
+
+    if ok then
+        return item
+    end
+
+    return nil
+end
+
 local function getViewportSize()
     local camera = getCurrentCamera()
     if camera then
@@ -59,10 +71,11 @@ local LocalPlayer = cloneInstance(Services.Players.LocalPlayer)
 if not LocalPlayer then
     return
 end
--- if string.find(executorName, "solara") or string.find(executorName, "xeno") then
---    LocalPlayer:Kick("XENO AND SOLARA IS UNSUPPORTED BROTHER!!!")
---    return
--- end
+
+if string.find(executorName, "solara") or string.find(executorName, "xeno") then
+    LocalPlayer:Kick("XENO AND SOLARA IS UNSUPPORTED BROTHER!!!")
+    return
+end
 
 local Theme = {
     outline = Color3.fromRGB(8, 15, 22),
@@ -314,6 +327,12 @@ local function addShell(parent, size, position, accentTop, radius, zindex)
     }
 end
 
+local MouseButtons = {
+    left = tryGetEnumItem(Enum.UserInputType, "MouseButton1"),
+    right = tryGetEnumItem(Enum.UserInputType, "MouseButton2"),
+    middle = tryGetEnumItem(Enum.UserInputType, "MouseButton3"),
+}
+
 local function bindToText(bind)
     if typeof(bind) ~= "EnumItem" then
         return "NONE"
@@ -326,10 +345,19 @@ local function bindToText(bind)
         [Enum.KeyCode.Backspace] = "BSP",
         [Enum.KeyCode.Space] = "SPACE",
         [Enum.KeyCode.Escape] = "ESC",
-        [Enum.UserInputType.MouseButton1] = "M1",
-        [Enum.UserInputType.MouseButton2] = "M2",
-        [Enum.UserInputType.MouseButton3] = "M3",
     }
+
+    if MouseButtons.left then
+        map[MouseButtons.left] = "M1"
+    end
+
+    if MouseButtons.right then
+        map[MouseButtons.right] = "M2"
+    end
+
+    if MouseButtons.middle then
+        map[MouseButtons.middle] = "M3"
+    end
 
     return map[bind] or string.upper(bind.Name)
 end
@@ -356,6 +384,17 @@ local function inputMatchesBind(bind, input)
     end
 
     return input.UserInputType == bind
+end
+
+local function getBindableMouseInput(input)
+    local inputType = input and input.UserInputType
+    if inputType == MouseButtons.left
+        or inputType == MouseButtons.right
+        or inputType == MouseButtons.middle then
+        return inputType
+    end
+
+    return nil
 end
 
 local function isInsideGui(guiObject, position)
@@ -1447,6 +1486,7 @@ local relayoutAllSectionColumns
 local colorToHex
 local openBindPopup
 local getInlineBindText
+local buildConfigMenu
 
 local TabDefinitions = {}
 local Entries = {}
@@ -3267,6 +3307,8 @@ getInlineBindText = function(entry)
     return formatToggleBindText(entry)
 end
 
+do
+
 local function createKeybindEntry(entry)
     local row = create("Frame", {
         Parent = KeybindList,
@@ -4026,6 +4068,8 @@ createColorRow = function(entry)
     end)
 end
 
+end
+
 for _, entry in ipairs(Entries) do
     if entry.kind == "toggle" then
         createToggleRow(entry)
@@ -4501,9 +4545,8 @@ Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
         elseif input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode ~= Enum.KeyCode.Unknown then
             MenuState.toggleBind = input.KeyCode
             SettingsPanel.bindListening = false
-        elseif input.UserInputType == Enum.UserInputType.MouseButton2
-            or input.UserInputType == Enum.UserInputType.MouseButton3 then
-            MenuState.toggleBind = input.UserInputType
+        elseif getBindableMouseInput(input) then
+            MenuState.toggleBind = getBindableMouseInput(input)
             SettingsPanel.bindListening = false
         else
             return
@@ -4521,9 +4564,8 @@ Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
             MenuState.listeningKeybindEntry.bind = nil
         elseif input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode ~= Enum.KeyCode.Unknown then
             MenuState.listeningKeybindEntry.bind = input.KeyCode
-        elseif input.UserInputType == Enum.UserInputType.MouseButton2
-            or input.UserInputType == Enum.UserInputType.MouseButton3 then
-            MenuState.listeningKeybindEntry.bind = input.UserInputType
+        elseif getBindableMouseInput(input) then
+            MenuState.listeningKeybindEntry.bind = getBindableMouseInput(input)
         else
             return
         end
@@ -4541,9 +4583,8 @@ Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
         elseif input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode ~= Enum.KeyCode.Unknown then
             MenuState.bindPopupCurrent.bind = input.KeyCode
             MenuState.bindPopupListening = false
-        elseif input.UserInputType == Enum.UserInputType.MouseButton2
-            or input.UserInputType == Enum.UserInputType.MouseButton3 then
-            MenuState.bindPopupCurrent.bind = input.UserInputType
+        elseif getBindableMouseInput(input) then
+            MenuState.bindPopupCurrent.bind = getBindableMouseInput(input)
             MenuState.bindPopupListening = false
         end
 
@@ -4625,7 +4666,7 @@ Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
         return
     end
 
-    if input.KeyCode == MenuState.toggleBind then
+    if inputMatchesBind(MenuState.toggleBind, input) then
         MenuState.visible = not MenuState.visible
 
         if MenuState.visible then
@@ -5288,97 +5329,96 @@ local function warnConfigFailure(actionName, message)
     warn("[NeverPaste Config] " .. tostring(actionName) .. " failed: " .. tostring(message))
 end
 
-local function doConfigAction(actionName, callback)
-    local windowObject = ConfigSystem.windowObject
-    if not windowObject then
-        return
-    end
-
-    local ok, message = callback(windowObject)
-    if not ok then
-        warnConfigFailure(actionName, message)
-        return
-    end
-
-    resetConfigDeleteState()
-end
-
-local function connectConfigButton(button, callback)
-    if not button then
-        return
-    end
-
-    button.MouseButton1Click:Connect(callback)
-end
-
-local function onCreateConfig()
-    doConfigAction("Create", function(windowObject)
-        return windowObject:SaveConfig(getRequestedConfigName(false))
-    end)
-end
-
-local function onSaveConfig()
-    doConfigAction("Save", function(windowObject)
-        return windowObject:SaveConfig(getRequestedConfigName(true))
-    end)
-end
-
-local function onLoadConfig()
-    doConfigAction("Load", function(windowObject)
-        return windowObject:LoadConfig(getRequestedConfigName(true))
-    end)
-end
-
-local function onDeleteConfig()
-    local configName = getRequestedConfigName(true)
-    if not configName then
-        warnConfigFailure("Delete", "config name is empty")
-        return
-    end
-
-    if ConfigSystem.deleteConfirmName ~= configName then
-        ConfigSystem.deleteConfirmName = configName
-        if ConfigSystem.deleteLabel then
-            ConfigSystem.deleteLabel.Text = "Are you sure?"
+do
+    function buildConfigMenu(windowObject)
+        if not windowObject or ConfigSystem.menuBuilt or not ConfigSystem.enabled then
+            return
         end
-        return
+
+        ConfigSystem.menuBuilt = true
+        ConfigSystem.windowObject = windowObject
+
+        if not ConfigSystem.buttonsBound then
+            local function doConfigAction(actionName, callback)
+                local activeWindow = ConfigSystem.windowObject
+                if not activeWindow then
+                    return
+                end
+
+                local ok, message = callback(activeWindow)
+                if not ok then
+                    warnConfigFailure(actionName, message)
+                    return
+                end
+
+                resetConfigDeleteState()
+            end
+
+            if ConfigSystem.createButton then
+                ConfigSystem.createButton.MouseButton1Click:Connect(function()
+                    doConfigAction("Create", function(activeWindow)
+                        return activeWindow:SaveConfig(getRequestedConfigName(false))
+                    end)
+                end)
+            end
+
+            if ConfigSystem.saveButton then
+                ConfigSystem.saveButton.MouseButton1Click:Connect(function()
+                    doConfigAction("Save", function(activeWindow)
+                        return activeWindow:SaveConfig(getRequestedConfigName(true))
+                    end)
+                end)
+            end
+
+            if ConfigSystem.loadButton then
+                ConfigSystem.loadButton.MouseButton1Click:Connect(function()
+                    doConfigAction("Load", function(activeWindow)
+                        return activeWindow:LoadConfig(getRequestedConfigName(true))
+                    end)
+                end)
+            end
+
+            if ConfigSystem.deleteButton then
+                ConfigSystem.deleteButton.MouseButton1Click:Connect(function()
+                    local configName = getRequestedConfigName(true)
+                    if not configName then
+                        warnConfigFailure("Delete", "config name is empty")
+                        return
+                    end
+
+                    if ConfigSystem.deleteConfirmName ~= configName then
+                        ConfigSystem.deleteConfirmName = configName
+                        if ConfigSystem.deleteLabel then
+                            ConfigSystem.deleteLabel.Text = "Are you sure?"
+                        end
+                        return
+                    end
+
+                    doConfigAction("Delete", function(activeWindow)
+                        return activeWindow:DeleteConfig(configName)
+                    end)
+                end)
+            end
+
+            if ConfigSystem.refreshButton then
+                ConfigSystem.refreshButton.MouseButton1Click:Connect(function()
+                    resetConfigDeleteState()
+                    refreshConfigControls(nil, false)
+                end)
+            end
+
+            ConfigSystem.buttonsBound = true
+        end
+
+        if not ConfigSystem.supported and ConfigSystem.titleLabel then
+            ConfigSystem.titleLabel.Text = "Configs (filesystem unavailable)"
+        elseif ConfigSystem.titleLabel then
+            ConfigSystem.titleLabel.Text = "Configs"
+        end
+
+        resetConfigDeleteState()
+        refreshConfigControls(nil, false)
     end
-
-    doConfigAction("Delete", function(windowObject)
-        return windowObject:DeleteConfig(configName)
-    end)
-end
-
-local function onRefreshConfigs()
-    resetConfigDeleteState()
-    refreshConfigControls(nil, false)
-end
-
-local function buildConfigMenu(windowObject)
-    if not windowObject or ConfigSystem.menuBuilt or not ConfigSystem.enabled then
-        return
-    end
-
-    ConfigSystem.menuBuilt = true
-    ConfigSystem.windowObject = windowObject
-
-    if not ConfigSystem.buttonsBound then
-        connectConfigButton(ConfigSystem.createButton, onCreateConfig)
-        connectConfigButton(ConfigSystem.saveButton, onSaveConfig)
-        connectConfigButton(ConfigSystem.loadButton, onLoadConfig)
-        connectConfigButton(ConfigSystem.deleteButton, onDeleteConfig)
-        connectConfigButton(ConfigSystem.refreshButton, onRefreshConfigs)
-        ConfigSystem.buttonsBound = true
-    end
-
-    if not ConfigSystem.supported and ConfigSystem.titleLabel then
-        ConfigSystem.titleLabel.Text = "Configs (filesystem unavailable)"
-    elseif ConfigSystem.titleLabel then
-        ConfigSystem.titleLabel.Text = "Configs"
-    end
-
-    resetConfigDeleteState()
-    refreshConfigControls(nil, false)
 end
 
 function WindowMethods:SetMenuBind(bind)
