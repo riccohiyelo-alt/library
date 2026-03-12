@@ -59,10 +59,11 @@ local LocalPlayer = cloneInstance(Services.Players.LocalPlayer)
 if not LocalPlayer then
     return
 end
--- if string.find(executorName, "solara") or string.find(executorName, "xeno") then
---    LocalPlayer:Kick("XENO AND SOLARA IS UNSUPPORTED BROTHER!!!")
---    return
--- end
+
+if string.find(executorName, "solara") or string.find(executorName, "xeno") then
+    LocalPlayer:Kick("XENO AND SOLARA IS UNSUPPORTED BROTHER!!!")
+    return
+end
 
 local Theme = {
     outline = Color3.fromRGB(8, 15, 22),
@@ -329,6 +330,8 @@ local function bindToText(bind)
         [Enum.UserInputType.MouseButton1] = "M1",
         [Enum.UserInputType.MouseButton2] = "M2",
         [Enum.UserInputType.MouseButton3] = "M3",
+        [Enum.UserInputType.MouseButton4] = "M4",
+        [Enum.UserInputType.MouseButton5] = "M5",
     }
 
     return map[bind] or string.upper(bind.Name)
@@ -356,6 +359,19 @@ local function inputMatchesBind(bind, input)
     end
 
     return input.UserInputType == bind
+end
+
+local function getBindableMouseInput(input)
+    local inputType = input and input.UserInputType
+    if inputType == Enum.UserInputType.MouseButton1
+        or inputType == Enum.UserInputType.MouseButton2
+        or inputType == Enum.UserInputType.MouseButton3
+        or inputType == Enum.UserInputType.MouseButton4
+        or inputType == Enum.UserInputType.MouseButton5 then
+        return inputType
+    end
+
+    return nil
 end
 
 local function isInsideGui(guiObject, position)
@@ -4501,9 +4517,8 @@ Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
         elseif input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode ~= Enum.KeyCode.Unknown then
             MenuState.toggleBind = input.KeyCode
             SettingsPanel.bindListening = false
-        elseif input.UserInputType == Enum.UserInputType.MouseButton2
-            or input.UserInputType == Enum.UserInputType.MouseButton3 then
-            MenuState.toggleBind = input.UserInputType
+        elseif getBindableMouseInput(input) then
+            MenuState.toggleBind = getBindableMouseInput(input)
             SettingsPanel.bindListening = false
         else
             return
@@ -4521,9 +4536,8 @@ Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
             MenuState.listeningKeybindEntry.bind = nil
         elseif input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode ~= Enum.KeyCode.Unknown then
             MenuState.listeningKeybindEntry.bind = input.KeyCode
-        elseif input.UserInputType == Enum.UserInputType.MouseButton2
-            or input.UserInputType == Enum.UserInputType.MouseButton3 then
-            MenuState.listeningKeybindEntry.bind = input.UserInputType
+        elseif getBindableMouseInput(input) then
+            MenuState.listeningKeybindEntry.bind = getBindableMouseInput(input)
         else
             return
         end
@@ -4541,9 +4555,8 @@ Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
         elseif input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode ~= Enum.KeyCode.Unknown then
             MenuState.bindPopupCurrent.bind = input.KeyCode
             MenuState.bindPopupListening = false
-        elseif input.UserInputType == Enum.UserInputType.MouseButton2
-            or input.UserInputType == Enum.UserInputType.MouseButton3 then
-            MenuState.bindPopupCurrent.bind = input.UserInputType
+        elseif getBindableMouseInput(input) then
+            MenuState.bindPopupCurrent.bind = getBindableMouseInput(input)
             MenuState.bindPopupListening = false
         end
 
@@ -4625,7 +4638,7 @@ Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
         return
     end
 
-    if input.KeyCode == MenuState.toggleBind then
+    if inputMatchesBind(MenuState.toggleBind, input) then
         MenuState.visible = not MenuState.visible
 
         if MenuState.visible then
