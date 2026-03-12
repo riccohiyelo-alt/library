@@ -4539,14 +4539,16 @@ Services.UserInputService.InputEnded:Connect(function(input)
 end)
 
 Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    local bindableMouseInput = getBindableMouseInput(input)
+
     if SettingsPanel.bindListening then
         if input.KeyCode == Enum.KeyCode.Escape then
             SettingsPanel.bindListening = false
         elseif input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode ~= Enum.KeyCode.Unknown then
             MenuState.toggleBind = input.KeyCode
             SettingsPanel.bindListening = false
-        elseif getBindableMouseInput(input) then
-            MenuState.toggleBind = getBindableMouseInput(input)
+        elseif bindableMouseInput then
+            MenuState.toggleBind = bindableMouseInput
             SettingsPanel.bindListening = false
         else
             return
@@ -4564,8 +4566,8 @@ Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
             MenuState.listeningKeybindEntry.bind = nil
         elseif input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode ~= Enum.KeyCode.Unknown then
             MenuState.listeningKeybindEntry.bind = input.KeyCode
-        elseif getBindableMouseInput(input) then
-            MenuState.listeningKeybindEntry.bind = getBindableMouseInput(input)
+        elseif bindableMouseInput then
+            MenuState.listeningKeybindEntry.bind = bindableMouseInput
         else
             return
         end
@@ -4583,8 +4585,8 @@ Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
         elseif input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode ~= Enum.KeyCode.Unknown then
             MenuState.bindPopupCurrent.bind = input.KeyCode
             MenuState.bindPopupListening = false
-        elseif getBindableMouseInput(input) then
-            MenuState.bindPopupCurrent.bind = getBindableMouseInput(input)
+        elseif bindableMouseInput then
+            MenuState.bindPopupCurrent.bind = bindableMouseInput
             MenuState.bindPopupListening = false
         end
 
@@ -4662,7 +4664,7 @@ Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
         end
     end
 
-    if gameProcessed then
+    if gameProcessed and not (bindableMouseInput and not MenuState.visible) then
         return
     end
 
