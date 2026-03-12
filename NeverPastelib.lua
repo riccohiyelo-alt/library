@@ -46,6 +46,18 @@ local function getCurrentCamera()
     return cloneInstance(Services.Workspace.CurrentCamera)
 end
 
+local function tryGetEnumItem(enumObject, itemName)
+    local ok, item = pcall(function()
+        return enumObject[itemName]
+    end)
+
+    if ok then
+        return item
+    end
+
+    return nil
+end
+
 local function getViewportSize()
     local camera = getCurrentCamera()
     if camera then
@@ -315,6 +327,12 @@ local function addShell(parent, size, position, accentTop, radius, zindex)
     }
 end
 
+local MouseButtons = {
+    left = tryGetEnumItem(Enum.UserInputType, "MouseButton1"),
+    right = tryGetEnumItem(Enum.UserInputType, "MouseButton2"),
+    middle = tryGetEnumItem(Enum.UserInputType, "MouseButton3"),
+}
+
 local function bindToText(bind)
     if typeof(bind) ~= "EnumItem" then
         return "NONE"
@@ -327,12 +345,19 @@ local function bindToText(bind)
         [Enum.KeyCode.Backspace] = "BSP",
         [Enum.KeyCode.Space] = "SPACE",
         [Enum.KeyCode.Escape] = "ESC",
-        [Enum.UserInputType.MouseButton1] = "M1",
-        [Enum.UserInputType.MouseButton2] = "M2",
-        [Enum.UserInputType.MouseButton3] = "M3",
-        [Enum.UserInputType.MouseButton4] = "M4",
-        [Enum.UserInputType.MouseButton5] = "M5",
     }
+
+    if MouseButtons.left then
+        map[MouseButtons.left] = "M1"
+    end
+
+    if MouseButtons.right then
+        map[MouseButtons.right] = "M2"
+    end
+
+    if MouseButtons.middle then
+        map[MouseButtons.middle] = "M3"
+    end
 
     return map[bind] or string.upper(bind.Name)
 end
@@ -363,11 +388,9 @@ end
 
 local function getBindableMouseInput(input)
     local inputType = input and input.UserInputType
-    if inputType == Enum.UserInputType.MouseButton1
-        or inputType == Enum.UserInputType.MouseButton2
-        or inputType == Enum.UserInputType.MouseButton3
-        or inputType == Enum.UserInputType.MouseButton4
-        or inputType == Enum.UserInputType.MouseButton5 then
+    if inputType == MouseButtons.left
+        or inputType == MouseButtons.right
+        or inputType == MouseButtons.middle then
         return inputType
     end
 
