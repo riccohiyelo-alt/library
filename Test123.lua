@@ -5469,6 +5469,9 @@ function WindowMethods:GetFlag(flag)
     })
 end
 
+end
+end
+
 -- Menu creation
 local function createWindow(config)
     config = config or {}
@@ -5541,8 +5544,6 @@ local function createWindow(config)
     end)
 
     return windowObject
-end
-end
 end
 
 function Atlanta:CreateWindow(config)
