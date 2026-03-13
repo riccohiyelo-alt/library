@@ -71,9 +71,6 @@ local function getViewportSize()
 end
 
 local LocalPlayer = cloneInstance(Services.Players.LocalPlayer)
-if not LocalPlayer then
-    return
-end
 
 --if string.find(executorName, "solara") or string.find(executorName, "xeno") then
 --    LocalPlayer:Kick("XENO AND SOLARA IS UNSUPPORTED BROTHER!!!")
