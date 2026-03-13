@@ -1,3 +1,4 @@
+-- Bootstrap
 local cloneref = cloneref or function(instance)
     return instance
 end
@@ -11,6 +12,7 @@ pcall(function()
     executorName = string.lower(identifyexecutor())
 end)
 
+-- Dependencies
 local Services = {
     Players = cloneref(game:GetService("Players")),
     TweenService = cloneref(game:GetService("TweenService")),
@@ -34,6 +36,7 @@ local FileApi = {
     delfile = type(delfile) == "function" and delfile or nil,
 }
 
+-- Core helpers
 local function cloneInstance(instance)
     if typeof(instance) == "Instance" then
         return cloneref(instance)
@@ -77,6 +80,7 @@ end
 --    return
 --end
 
+-- Theme and assets
 local Theme = {
     outline = Color3.fromRGB(8, 15, 22),
     inline = Color3.fromRGB(20, 34, 46),
@@ -129,6 +133,7 @@ local ThemeRegistry = {
     sectionContrast = {},
 }
 
+-- UI primitives
 local function create(className, properties)
     local instance = Instance.new(className)
 
@@ -447,6 +452,7 @@ local function getPing()
     return 0
 end
 
+-- Root bootstrap
 local placeName = game.Name
 task.spawn(function()
     pcall(function()
@@ -608,6 +614,7 @@ do
     end
 end
 
+-- Runtime state
 local MenuState = {
     toggleBind = Enum.KeyCode.Insert,
     visible = true,
@@ -696,6 +703,79 @@ local SettingsPanel = {
     bindListening = false,
 }
 
+local PickerState = {
+    target = nil,
+    h = 0,
+    s = 1,
+    v = 1,
+}
+
+local Tabs = {}
+local Sections = {}
+local TabDefinitions = {}
+local Entries = {}
+local EntryMap = {}
+local CreatedSubsectionHeaders = {}
+local ModeButtons = {}
+
+-- Public API tables
+local Atlanta = {}
+Atlanta.__index = Atlanta
+
+local WindowMethods = {}
+WindowMethods.__index = WindowMethods
+
+local MenuMethods = {}
+MenuMethods.__index = MenuMethods
+
+local SectionMethods = {}
+SectionMethods.__index = SectionMethods
+
+local ControlMethods = {}
+ControlMethods.__index = ControlMethods
+
+-- Forward declarations
+local DefaultTabId
+local CurrentTab
+local selectTab
+local stopMenuTween
+local rebuildSearchResults
+local closeSearch
+local closeInfo
+local closeSettings
+local closeDropdown
+local refreshDropdownOverlay
+local closeMiniPanels
+local closeConfigMenu
+local toggleSearch
+local toggleInfo
+local toggleSettings
+local toggleConfigMenu
+local getSection
+local createTab
+local createToggleRow
+local createButtonRow
+local createSliderRow
+local createTextboxRow
+local createDropdownRow
+local createKeybindRow
+local createColorRow
+local closeBindPopup
+local closePicker
+local animateMenuVisibility
+local refreshKeybindList
+local updateShellSize
+local updateWindowRestPosition
+local getMenuHiddenPosition
+local reflowTabButtons
+local relayoutSectionColumn
+local relayoutAllSectionColumns
+local colorToHex
+local openBindPopup
+local getInlineBindText
+local buildConfigMenu
+
+-- Shell and overlay assembly
 local WindowShell = addShell(ScreenGui, UDim2.fromOffset(658, 476), UDim2.fromOffset(0, 0), true, 0, 10)
 local Window = WindowShell.outline
 Window.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -821,9 +901,6 @@ create("UIPadding", {
     PaddingRight = UDim.new(0, 4),
 })
 ContentShell.background.ClipsDescendants = true
-
-local Tabs = {}
-local Sections = {}
 
 local ConfigButton
 local SearchButton
@@ -1439,75 +1516,8 @@ do
     })
 end
 
-local ModeButtons = {}
-
-local PickerState = {
-    target = nil,
-    h = 0,
-    s = 1,
-    v = 1,
-}
-
-local DefaultTabId
-local CurrentTab
-local selectTab
-local stopMenuTween
-local rebuildSearchResults
-local closeSearch
-local closeInfo
-local closeSettings
-local closeDropdown
-local refreshDropdownOverlay
-local closeMiniPanels
-local closeConfigMenu
-local toggleSearch
-local toggleInfo
-local toggleSettings
-local toggleConfigMenu
-local getSection
-local createTab
-local createToggleRow
-local createButtonRow
-local createSliderRow
-local createTextboxRow
-local createDropdownRow
-local createKeybindRow
-local createColorRow
-local closeBindPopup
-local closePicker
-local animateMenuVisibility
-local refreshKeybindList
-local updateShellSize
-local updateWindowRestPosition
-local getMenuHiddenPosition
-local reflowTabButtons
-local relayoutSectionColumn
-local relayoutAllSectionColumns
-local colorToHex
-local openBindPopup
-local getInlineBindText
-local buildConfigMenu
-
-local TabDefinitions = {}
-local Entries = {}
-local EntryMap = {}
-local CreatedSubsectionHeaders = {}
-
-local Atlanta = {}
-Atlanta.__index = Atlanta
-
-local WindowMethods = {}
-WindowMethods.__index = WindowMethods
-
-local MenuMethods = {}
-MenuMethods.__index = MenuMethods
-
-local SectionMethods = {}
-SectionMethods.__index = SectionMethods
-
-local ControlMethods = {}
-ControlMethods.__index = ControlMethods
-
+-- Shared utilities
+-- Collection and callback helpers
 local function appendUniqueStrings(target, values)
     if type(values) ~= "table" then
         return
@@ -1580,6 +1590,7 @@ local function trimString(text)
     return tostring(text or ""):gsub("^%s+", ""):gsub("%s+$", "")
 end
 
+-- Filesystem and serialization helpers
 supportsConfigFiles = function()
     return FileApi.makefolder ~= nil
         and FileApi.writefile ~= nil
@@ -1702,6 +1713,7 @@ local function makeTabId(preferred)
     return candidate
 end
 
+-- Entry identity and layout helpers
 local function resolveColumn(position)
     local normalized = string.lower(tostring(position or "left"))
     if normalized == "center" or normalized == "middle" then
@@ -1751,6 +1763,7 @@ local function getSliderPrecision(entry)
     return decimals and #decimals or 2
 end
 
+-- Control value helpers
 local function normalizeSliderValue(entry, value)
     local numericValue = tonumber(value)
     if numericValue == nil or numericValue ~= numericValue or numericValue == math.huge or numericValue == -math.huge then
@@ -1903,6 +1916,7 @@ local function getDropdownSelectionList(valueMap, values)
     return selected
 end
 
+-- Config payload helpers
 local function getEntryConfigValue(entry, useDefaults)
     if not entry then
         return nil
@@ -2312,6 +2326,7 @@ local function createConfigPopupButton(parent, text, position, size)
     }
 end
 
+-- Config panel bootstrap
 local function initializeConfigPanel()
     local configShell = addShell(WindowShell.background, UDim2.fromOffset(248, 224), UDim2.new(0, 8, 1, -252), false, 0, 40)
     configShell.outline.Visible = false
@@ -2410,21 +2425,22 @@ end
 
 initializeConfigPanel()
 
+-- Panel visibility and quick actions
 do
 
 do
-function closeSearch()
+closeSearch = function()
     MenuState.searchOpen = false
     SearchShell.outline.Visible = false
     SearchShell.input:ReleaseFocus()
 end
 
-function closeInfo()
+closeInfo = function()
     MenuState.infoOpen = false
     InfoShell.outline.Visible = false
 end
 
-function closeSettings()
+closeSettings = function()
     MenuState.settingsOpen = false
     SettingsShell.outline.Visible = false
     SettingsPanel.bindListening = false
@@ -2834,6 +2850,7 @@ end
 
 end
 
+-- Layout, composition and control rendering
 do
 
 do
@@ -4088,7 +4105,7 @@ for _, entry in ipairs(Entries) do
     end
 end
 
-function selectTab(id)
+selectTab = function(id)
     CurrentTab = id
 
     for tabId, tab in pairs(Tabs) do
@@ -4110,6 +4127,7 @@ end
 
 end
 
+-- Menu motion, overlays and refresh
 do
 
 local function getBindDisplayText(entry)
@@ -4196,7 +4214,7 @@ local function clearMenuTweenState()
     table.clear(MenuMotion.connections)
 end
 
-function stopMenuTween()
+stopMenuTween = function()
     for _, tweenObject in ipairs(MenuMotion.tweens) do
         tweenObject:Cancel()
     end
@@ -4332,7 +4350,7 @@ refreshKeybindList = function()
     end
 end
 
-function refreshRows()
+refreshRows = function()
     for _, entry in ipairs(Entries) do
         if entry.kind == "toggle" and entry.ui then
             if entry.mode == "always" then
@@ -4392,7 +4410,7 @@ function refreshRows()
     refreshKeybindList()
 end
 
-function updateWatermark()
+updateWatermark = function()
     local visible = MenuState.introDone and Runtime.showWatermark
     local watermarkColor = Theme.accent
     local now = time()
@@ -4420,6 +4438,7 @@ end
 
 end
 
+-- Input lifecycle and intro orchestration
 do
 local playIntro
 local clearWindowState
@@ -4827,6 +4846,7 @@ end
 
 end
 
+-- Entry registration and builder API
 do
 
 local function renderEntry(entry)
@@ -5193,6 +5213,7 @@ end
 
 end
 
+-- Window configuration API
 do
 
 function WindowMethods:ExportConfig(useDefaults)
@@ -5631,6 +5652,7 @@ Targeting:AddSlider({ Name = "FOV", Min = 0, Max = 30, Default = 5, Round = 0.1,
 Targeting:AddDropdown({ Name = "Hitbox", Values = { "Head", "Chest", "Stomach" }, Default = "Head" })
 ]]
 
+-- Module exports
 -- Services
 Atlanta.Services = Services
 
