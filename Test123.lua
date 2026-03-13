@@ -5684,6 +5684,26 @@ Atlanta.State = {
 Atlanta.flags = EntryMap
 Atlanta.entries = Entries
 
+do
+    local globalScope
+
+    if type(getgenv) == "function" then
+        local ok, env = pcall(getgenv)
+        if ok and type(env) == "table" then
+            globalScope = env
+        end
+    end
+
+    if not globalScope and type(_G) == "table" then
+        globalScope = _G
+    end
+
+    if globalScope then
+        globalScope.Atlanta = Atlanta
+        globalScope.NeverPaste = Atlanta
+    end
+end
+
 refreshTheme()
 stopMenuTween()
 WindowRestPosition = DefaultWindowPosition
