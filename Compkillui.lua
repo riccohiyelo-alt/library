@@ -4261,80 +4261,23 @@ Render.createESPPreviewRow = function(entry)
 
     local camera = create("Camera", {
         Parent = Services.Workspace,
-        FieldOfView = 70,
-        CameraType = Enum.CameraType.Scriptable,
+        FieldOfView = 70.00022888183594,
+        CameraType = Enum.CameraType.Track,
+        Focus = CFrame.new(0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+        CFrame = CFrame.new(0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1),
         Name = "NeverPastePreviewCamera_" .. math.random(10000, 99999),
     })
+
     viewport.CurrentCamera = camera
 
-    local function createPreviewCharacter()
-        if LocalPlayer and LocalPlayer.Character then
-            local originalArchivable = LocalPlayer.Character.Archivable
-            LocalPlayer.Character.Archivable = true
-            local character = LocalPlayer.Character:Clone()
-            LocalPlayer.Character.Archivable = originalArchivable
-            
-            if character then
-                for _, descendant in ipairs(character:GetDescendants()) do
-                    if descendant:IsA("BasePart") then
-                        descendant.Anchored = true
-                        descendant.CanCollide = false
-                    elseif descendant:IsA("Script") or descendant:IsA("LocalScript") or descendant:IsA("Animator") then
-                        descendant:Destroy()
-                    end
-                end
-                
-                local humanoid = character:FindFirstChildOfClass("Humanoid")
-                if humanoid then
-                    humanoid.AutoRotate = false
-                    humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-                end
-                
-                local root = character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
-                if root then
-                    character.PrimaryPart = root
-                    return character
-                end
-            end
-        end
-
-        local character = Instance.new("Model")
-        
-        local root = Instance.new("Part", character)
-        root.Name = "HumanoidRootPart"
-        root.Size = Vector3.new(2, 2, 1)
-        root.Transparency = 1
-        root.Anchored = true
-        root.CanCollide = false
-        
-        local torso = Instance.new("Part", character)
-        torso.Name = "Torso"
-        torso.Size = Vector3.new(2, 2, 1)
-        torso.Position = Vector3.new(0, 0, 0)
-        torso.Anchored = true
-        torso.CanCollide = false
-        torso.Material = Enum.Material.SmoothPlastic
-        torso.BrickColor = BrickColor.new("Medium stone grey")
-        
-        local head = Instance.new("Part", character)
-        head.Name = "Head"
-        head.Size = Vector3.new(1.2, 1.2, 1.2)
-        head.Position = Vector3.new(0, 1.6, 0)
-        head.Anchored = true
-        head.CanCollide = false
-        head.Material = Enum.Material.SmoothPlastic
-        head.BrickColor = BrickColor.new("Medium stone grey")
-        
-        local hum = Instance.new("Humanoid", character)
-        hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-        
-        character.PrimaryPart = root
-        return character
+    LocalPlayer.Character.Archivable = true
+    local character = LocalPlayer.Character:Clone()
+    if character:FindFirstChild("Animate") then
+        character.Animate:Destroy()
     end
-
-    local character = createPreviewCharacter()
-    character.Name = "PreviewDummy"
     character.Parent = viewport
+    
+    camera.CameraSubject = character
 
     local holder = create("Frame", {
         Parent = overlay,
@@ -4621,14 +4564,15 @@ Render.createESPPreviewRow = function(entry)
         end
     end
 
-    if character.PrimaryPart then
-        camera.CFrame = CFrame.new(Vector3.new(0, 1, 0), Vector3.new(0, 1, -6))
-        character:SetPrimaryPartCFrame(CFrame.new(Vector3.new(0, 1, -6)))
-    end
-
+    local rotation = 0
     trackRuntimeConnection(Services.RunService.RenderStepped:Connect(function()
         if not shell.outline.Parent then
             return
+        end
+
+        rotation = rotation + 0.5
+        if character.PrimaryPart then
+            character:SetPrimaryPartCFrame(CFrame.new(Vector3.new(0, 1, -6)) * CFrame.Angles(0, math.rad(rotation), 0))
         end
 
         updatePreviewPosition()
