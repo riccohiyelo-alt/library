@@ -4178,7 +4178,7 @@ Render.createESPPreviewRow = function(entry)
     local previewSize = Vector2.new(300, 325)
     local previewGui = create("ScreenGui", {
         Parent = RootGui,
-        Name = generateRuntimeName("NeverPastePreviewUI"),
+        Name = "NeverPastePreview_" .. math.random(10000, 99999),
         ResetOnSpawn = false,
         IgnoreGuiInset = true,
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
@@ -4263,65 +4263,47 @@ Render.createESPPreviewRow = function(entry)
         Parent = Services.Workspace,
         FieldOfView = 70,
         CameraType = Enum.CameraType.Scriptable,
-        Name = generateRuntimeName("NeverPastePreviewCamera"),
+        Name = "NeverPastePreviewCamera_" .. math.random(10000, 99999),
     })
     viewport.CurrentCamera = camera
 
     local function createPreviewCharacter()
-        local fallbackDescription = Instance.new("HumanoidDescription")
-        local humanoidDescription = fallbackDescription
-
-        if LocalPlayer then
-            pcall(function()
-                humanoidDescription = Services.Players:GetHumanoidDescriptionFromUserId(LocalPlayer.UserId)
-            end)
-        end
-
-        local fallbackCharacter
-        pcall(function()
-            fallbackCharacter = Services.Players:CreateHumanoidModelFromDescription(humanoidDescription, Enum.HumanoidRigType.R15)
-        end)
-
-        if typeof(fallbackCharacter) == "Instance" then
-            for _, descendant in ipairs(fallbackCharacter:GetDescendants()) do
-                if descendant:IsA("BasePart") then
-                    descendant.Anchored = true
-                    descendant.CanCollide = false
-                elseif descendant:IsA("Script") or descendant:IsA("LocalScript") or descendant:IsA("Animator") then
-                    descendant:Destroy()
-                end
-            end
-
-            local humanoid = fallbackCharacter:FindFirstChildOfClass("Humanoid")
-            if humanoid then
-                humanoid.AutoRotate = false
-                humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-            end
-        end
-
-        return fallbackCharacter
-    end
-
-    local character = createPreviewCharacter()
-    if not character then
-        character = Instance.new("Model")
-        local root = Instance.new("Part")
+        local character = Instance.new("Model")
+        
+        local root = Instance.new("Part", character)
         root.Name = "HumanoidRootPart"
         root.Size = Vector3.new(2, 2, 1)
         root.Transparency = 1
         root.Anchored = true
         root.CanCollide = false
-        root.Parent = character
+        
+        local torso = Instance.new("Part", character)
+        torso.Name = "Torso"
+        torso.Size = Vector3.new(2, 2, 1)
+        torso.Position = Vector3.new(0, 0, 0)
+        torso.Anchored = true
+        torso.CanCollide = false
+        torso.Material = Enum.Material.SmoothPlastic
+        torso.BrickColor = BrickColor.new("Medium stone grey")
+        
+        local head = Instance.new("Part", character)
+        head.Name = "Head"
+        head.Size = Vector3.new(1.2, 1.2, 1.2)
+        head.Position = Vector3.new(0, 1.6, 0)
+        head.Anchored = true
+        head.CanCollide = false
+        head.Material = Enum.Material.SmoothPlastic
+        head.BrickColor = BrickColor.new("Medium stone grey")
+        
+        local hum = Instance.new("Humanoid", character)
+        hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+        
         character.PrimaryPart = root
+        return character
     end
 
+    local character = createPreviewCharacter()
     character.Name = "PreviewDummy"
-
-    local root = character:FindFirstChild("HumanoidRootPart") or character:WaitForChild("HumanoidRootPart", 2)
-    if root then
-        character.PrimaryPart = root
-    end
-
     character.Parent = viewport
 
     local holder = create("Frame", {
@@ -5534,6 +5516,9 @@ local function registerEntry(entry)
     elseif entry.kind == "textbox" then
         entry.value = tostring(entry.value or "")
         entry.placeholder = tostring(entry.placeholder or "")
+    end
+    if entry.kind == "esppreview" then
+        entry.name = entry.name or "ESP Preview"
     end
 
     entry.id = makeEntryId(entry.id or entry.flag or string.format("%s_%s_%s", entry.tab, entry.section, entry.name))
