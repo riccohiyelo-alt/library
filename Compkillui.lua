@@ -867,6 +867,7 @@ local getInlineBindText
 local buildConfigMenu
 local playIntro
 local clearWindowState
+local revealWindowImmediate
 
 -- Shell and overlay assembly
 local WindowShell = addShell(ScreenGui, UDim2.fromOffset(658, 476), UDim2.fromOffset(0, 0), true, 0, 10)
@@ -4885,6 +4886,15 @@ trackRuntimeConnection(Services.RunService.RenderStepped:Connect(function(deltaT
     updateWatermark()
 end))
 
+revealWindowImmediate = function()
+    MenuState.introDone = true
+    updateWindowRestPosition(WindowRestPosition or Window.Position)
+    Window.Visible = true
+    Window.BackgroundTransparency = 0
+    Window.Position = WindowRestPosition
+    WindowScale.Scale = 1
+end
+
 playIntro = function()
     tween(Blur, 0.9, { Size = 52 }, Enum.EasingStyle.Quart)
     local fadeIn = tween(Intro, 0.45, { BackgroundTransparency = 0.28 }, Enum.EasingStyle.Quad)
@@ -4941,13 +4951,13 @@ playIntro = function()
 
     Intro:Destroy()
     Blur:Destroy()
+    Intro = nil
+    Blur = nil
 
-    updateWindowRestPosition(WindowRestPosition or Window.Position)
-    Window.Visible = true
+    revealWindowImmediate()
     Window.Position = getMenuHiddenPosition()
     WindowScale.Scale = 0.965
     animateMenuVisibility(true)
-    MenuState.introDone = true
 end
 
 end
@@ -5650,13 +5660,21 @@ local function createWindow(config)
     updateWatermark()
 
     if config.Intro == false or not (Intro and Intro.Parent and Blur and Blur.Parent) then
-        MenuState.introDone = true
-        Window.Visible = true
-        Window.BackgroundTransparency = 0
-        Window.Position = WindowRestPosition
-        WindowScale.Scale = 1
+        revealWindowImmediate()
     else
-        task.spawn(playIntro)
+        task.spawn(function()
+            local ok, err = pcall(playIntro)
+            if ok then
+                return
+            end
+
+            warn("[NeverPaste Intro] " .. tostring(err))
+            destroyInstance(Intro)
+            destroyInstance(Blur)
+            Intro = nil
+            Blur = nil
+            revealWindowImmediate()
+        end)
     end
 
     local windowObject = setmetatable({}, WindowMethods)
