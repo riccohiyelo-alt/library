@@ -4268,27 +4268,37 @@ Render.createESPPreviewRow = function(entry)
     viewport.CurrentCamera = camera
 
     local function createPreviewCharacter()
-        local playerCharacter = LocalPlayer and cloneInstance(LocalPlayer.Character)
-        if typeof(playerCharacter) == "Instance" then
-            local cloned
+        local fallbackDescription = Instance.new("HumanoidDescription")
+        local humanoidDescription = fallbackDescription
+
+        if LocalPlayer then
             pcall(function()
-                playerCharacter.Archivable = true
-                cloned = playerCharacter:Clone()
+                humanoidDescription = Services.Players:GetHumanoidDescriptionFromUserId(LocalPlayer.UserId)
             end)
-            if cloned then
-                local animate = cloned:FindFirstChild("Animate")
-                if animate then
-                    animate:Destroy()
+        end
+
+        local fallbackCharacter
+        pcall(function()
+            fallbackCharacter = Services.Players:CreateHumanoidModelFromDescription(humanoidDescription, Enum.HumanoidRigType.R15)
+        end)
+
+        if typeof(fallbackCharacter) == "Instance" then
+            for _, descendant in ipairs(fallbackCharacter:GetDescendants()) do
+                if descendant:IsA("BasePart") then
+                    descendant.Anchored = true
+                    descendant.CanCollide = false
+                elseif descendant:IsA("Script") or descendant:IsA("LocalScript") or descendant:IsA("Animator") then
+                    descendant:Destroy()
                 end
-                return cloned
+            end
+
+            local humanoid = fallbackCharacter:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid.AutoRotate = false
+                humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
             end
         end
 
-        local fallbackDescription = Instance.new("HumanoidDescription")
-        local fallbackCharacter
-        pcall(function()
-            fallbackCharacter = Services.Players:CreateHumanoidModelFromDescription(fallbackDescription, Enum.HumanoidRigType.R15)
-        end)
         return fallbackCharacter
     end
 
@@ -4479,63 +4489,17 @@ Render.createESPPreviewRow = function(entry)
         LineJoinMode = Enum.LineJoinMode.Miter,
     })
 
-    local dragging = false
     local dockedToWindow = true
-    local dragStart
-    local dragInput
-    local startPosition
-    local function clampPreviewPosition(position)
-        local viewportSize = getViewportSize()
-        return Vector2.new(
-            math.clamp(position.X, 10, math.max(10, viewportSize.X - previewSize.X - 10)),
-            math.clamp(position.Y, 10, math.max(10, viewportSize.Y - previewSize.Y - 10))
-        )
-    end
 
     dragHandle.InputBegan:Connect(function(input)
         if input.UserInputType ~= Enum.UserInputType.MouseButton1 then
             return
         end
 
-        dragging = true
         dockedToWindow = false
-        dragStart = input.Position
-        startPosition = shell.outline.Position
-
-        local releaseConnection
-        releaseConnection = input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-                dragInput = nil
-                if releaseConnection then
-                    releaseConnection:Disconnect()
-                end
-            end
-        end)
     end)
 
-    dragHandle.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement then
-            dragInput = input
-        end
-    end)
-
-    trackRuntimeConnection(Services.UserInputService.InputChanged:Connect(function(input)
-        if not dragging or input ~= dragInput then
-            return
-        end
-
-        local delta = input.Position - dragStart
-        local anchoredPosition = Vector2.new(
-            startPosition.X.Offset + delta.X,
-            startPosition.Y.Offset + delta.Y
-        )
-        local clampedPosition = clampPreviewPosition(anchoredPosition)
-        shell.outline.Position = UDim2.fromOffset(
-            clampedPosition.X,
-            clampedPosition.Y
-        )
-    end))
+    makeDraggable(dragHandle, shell.outline)
 
     local function updatePreviewVisibility()
         local isVisible = (entry.visible ~= false) and MenuState.introDone and MenuState.visible
@@ -4544,7 +4508,7 @@ Render.createESPPreviewRow = function(entry)
     end
 
     local function updatePreviewPosition()
-        if dragging or not dockedToWindow or not shell.outline.Parent then
+        if not dockedToWindow or not shell.outline.Parent then
             return
         end
 
