@@ -4490,6 +4490,18 @@ Render.createESPPreviewRow = function(entry)
     })
 
     local dockedToWindow = true
+    local previewDragging = false
+    local previewDragInput
+    local previewDragStart
+    local previewDragStartPosition
+
+    local function clampPreviewPosition(position)
+        local viewportSize = getViewportSize()
+        return Vector2.new(
+            math.clamp(position.X, 10, math.max(10, viewportSize.X - previewSize.X - 10)),
+            math.clamp(position.Y, 10, math.max(10, viewportSize.Y - previewSize.Y - 10))
+        )
+    end
 
     dragHandle.InputBegan:Connect(function(input)
         if input.UserInputType ~= Enum.UserInputType.MouseButton1 then
@@ -4497,9 +4509,41 @@ Render.createESPPreviewRow = function(entry)
         end
 
         dockedToWindow = false
+        previewDragging = true
+        previewDragStart = input.Position
+        previewDragStartPosition = shell.outline.Position
+
+        local releaseConnection
+        releaseConnection = input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                previewDragging = false
+                previewDragInput = nil
+                if releaseConnection then
+                    releaseConnection:Disconnect()
+                end
+            end
+        end)
     end)
 
-    makeDraggable(dragHandle, shell.outline)
+    dragHandle.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            previewDragInput = input
+        end
+    end)
+
+    trackRuntimeConnection(Services.UserInputService.InputChanged:Connect(function(input)
+        if not previewDragging or input ~= previewDragInput or not previewDragStartPosition then
+            return
+        end
+
+        local delta = input.Position - previewDragStart
+        local clampedPosition = clampPreviewPosition(Vector2.new(
+            previewDragStartPosition.X.Offset + delta.X,
+            previewDragStartPosition.Y.Offset + delta.Y
+        ))
+
+        shell.outline.Position = UDim2.fromOffset(clampedPosition.X, clampedPosition.Y)
+    end))
 
     local function updatePreviewVisibility()
         local isVisible = (entry.visible ~= false) and MenuState.introDone and MenuState.visible
