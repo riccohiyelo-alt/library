@@ -2132,391 +2132,399 @@ local function setDropdownValues(entry, values, preferredValue)
     end
 end
 
-local function getConfigList()
-    if not ConfigSystem.supported then
-        return {}
-    end
-
-    ensureFolder(ConfigSystem.directory)
-    ensureFolder(ConfigSystem.folder)
-
-    local ok, files = pcall(FileApi.listfiles, ConfigSystem.folder)
-    if not ok or type(files) ~= "table" then
-        return {}
-    end
-
-    local names = {}
-    for _, filePath in ipairs(files) do
-        local normalized = tostring(filePath):gsub("\\", "/")
-        local name = normalized:match("([^/]+)%.cfg$")
-        if name then
-            names[#names + 1] = name
-        end
-    end
-
-    table.sort(names, function(left, right)
-        return string.lower(left) < string.lower(right)
-    end)
-
-    return names
-end
-
-local function exportConfigData(useDefaults)
-    local payload = {
-        meta = {
-            title = Runtime.title,
-            version = 2,
-            directory = ConfigSystem.directory,
-        },
-        settings = {},
-    }
-
-    for _, entry in ipairs(Entries) do
-        if isConfigEntry(entry) then
-            payload.settings[entry.flag] = getEntryConfigValue(entry, useDefaults)
-        end
-    end
-
-    return payload
-end
-
+local exportConfigData
+local applyConfigData
 local refreshConfigControls
 local resetConfigDeleteState
+local clearConfigRows
+local setConfigInputText
+local getRequestedConfigName
 
-local function applyConfigData(payload)
-    if type(payload) ~= "table" then
-        return false, "invalid config payload"
-    end
+do
+    exportConfigData = function(useDefaults)
+        local payload = {
+            meta = {
+                title = Runtime.title,
+                version = 2,
+                directory = ConfigSystem.directory,
+            },
+            settings = {},
+        }
 
-    local settings = payload
-    if type(payload.settings) == "table" then
-        settings = payload.settings
-    elseif type(payload.flags) == "table" then
-        settings = payload.flags
-    end
-
-    if type(settings) ~= "table" then
-        return false, "config has no settings"
-    end
-
-    for flag, value in pairs(settings) do
-        local entry = EntryMap[flag]
-        if isConfigEntry(entry) then
-            setEntryValue(entry, value, true)
+        for _, entry in ipairs(Entries) do
+            if isConfigEntry(entry) then
+                payload.settings[entry.flag] = getEntryConfigValue(entry, useDefaults)
+            end
         end
+
+        return payload
     end
 
-    refreshRows()
-    updateWatermark()
-    resetConfigDeleteState()
-    if refreshConfigControls and ConfigSystem.menuBuilt then
-        refreshConfigControls(ConfigSystem.selectedName, false)
-    end
-    return true
-end
-
-local function setConfigInputText(value)
-    if not ConfigSystem.inputBox then
-        return
-    end
-
-    ConfigSystem.syncing = true
-    ConfigSystem.inputBox.Text = normalizeConfigName(value or "")
-    ConfigSystem.syncing = false
-end
-
-resetConfigDeleteState = function()
-    ConfigSystem.deleteConfirmName = nil
-    if ConfigSystem.deleteLabel then
-        ConfigSystem.deleteLabel.Text = "Delete"
-    end
-end
-
-local function clearConfigRows()
-    for _, row in ipairs(ConfigSystem.rows) do
-        if row.button and row.button.Parent then
-            row.button:Destroy()
+    applyConfigData = function(payload)
+        if type(payload) ~= "table" then
+            return false, "invalid config payload"
         end
+
+        local settings = payload
+        if type(payload.settings) == "table" then
+            settings = payload.settings
+        elseif type(payload.flags) == "table" then
+            settings = payload.flags
+        end
+
+        if type(settings) ~= "table" then
+            return false, "config has no settings"
+        end
+
+        for flag, value in pairs(settings) do
+            local entry = EntryMap[flag]
+            if isConfigEntry(entry) then
+                setEntryValue(entry, value, true)
+            end
+        end
+
+        refreshRows()
+        updateWatermark()
+        resetConfigDeleteState()
+        if refreshConfigControls and ConfigSystem.menuBuilt then
+            refreshConfigControls(ConfigSystem.selectedName, false)
+        end
+        return true
     end
 
-    table.clear(ConfigSystem.rows)
-end
+    local function getConfigList()
+        if not ConfigSystem.supported then
+            return {}
+        end
 
-local function buildFilteredConfigNames(filterText)
-    local names = getConfigList()
-    if filterText == "" then
+        ensureFolder(ConfigSystem.directory)
+        ensureFolder(ConfigSystem.folder)
+
+        local ok, files = pcall(FileApi.listfiles, ConfigSystem.folder)
+        if not ok or type(files) ~= "table" then
+            return {}
+        end
+
+        local names = {}
+        for _, filePath in ipairs(files) do
+            local normalized = tostring(filePath):gsub("\\", "/")
+            local name = normalized:match("([^/]+)%.cfg$")
+            if name then
+                names[#names + 1] = name
+            end
+        end
+
+        table.sort(names, function(left, right)
+            return string.lower(left) < string.lower(right)
+        end)
+
         return names
     end
 
-    local filtered = {}
-    local normalizedFilter = string.lower(filterText)
+    setConfigInputText = function(value)
+        if not ConfigSystem.inputBox then
+            return
+        end
 
-    for _, name in ipairs(names) do
-        if string.find(string.lower(name), normalizedFilter, 1, true) then
-            filtered[#filtered + 1] = name
+        ConfigSystem.syncing = true
+        ConfigSystem.inputBox.Text = normalizeConfigName(value or "")
+        ConfigSystem.syncing = false
+    end
+
+    resetConfigDeleteState = function()
+        ConfigSystem.deleteConfirmName = nil
+        if ConfigSystem.deleteLabel then
+            ConfigSystem.deleteLabel.Text = "Delete"
         end
     end
 
-    return filtered
-end
-
-local function createConfigRow(name)
-    local row = create("TextButton", {
-        Parent = ConfigSystem.results,
-        BackgroundColor3 = Theme.accent,
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        Size = UDim2.new(1, -2, 0, 18),
-        Text = "",
-        AutoButtonColor = false,
-        ZIndex = 44,
-    })
-
-    applyGradient(row, Color3.fromRGB(255, 255, 255), Color3.fromRGB(167, 167, 167), 90)
-
-    local label = createThemedText(row, {
-        Parent = row,
-        BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(4, 0),
-        Size = UDim2.new(1, -8, 1, 0),
-        Font = Enum.Font.Code,
-        Text = name,
-        TextSize = 11,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 45,
-    }, false)
-
-    row.MouseEnter:Connect(function()
-        row.BackgroundTransparency = 0.95
-    end)
-
-    row.MouseLeave:Connect(function()
-        row.BackgroundTransparency = 1
-    end)
-
-    row.MouseButton1Click:Connect(function()
-        ConfigSystem.selectedName = name
-        setConfigInputText(name)
-        resetConfigDeleteState()
-        refreshConfigControls(name, true)
-    end)
-
-    ConfigSystem.rows[#ConfigSystem.rows + 1] = {
-        button = row,
-        label = label,
-        name = name,
-    }
-end
-
-refreshConfigControls = function(preferredName, syncNameBox)
-    if not ConfigSystem.menuBuilt then
-        return {}
-    end
-
-    local typed = normalizeConfigName(ConfigSystem.inputBox and ConfigSystem.inputBox.Text or "")
-    local names = getConfigList()
-    local selected = preferredName
-
-    if selected == nil or selected == "" or not table.find(names, selected) then
-        selected = ConfigSystem.selectedName
-    end
-
-    if selected == nil or selected == "" or not table.find(names, selected) then
-        selected = names[1]
-    end
-
-    if selected ~= nil and selected ~= "" and not table.find(names, selected) then
-        selected = nil
-    end
-
-    ConfigSystem.selectedName = selected
-
-    if syncNameBox and selected then
-        setConfigInputText(selected)
-        typed = selected
-    end
-
-    clearConfigRows()
-
-    local visibleNames = buildFilteredConfigNames(typed)
-    for _, name in ipairs(visibleNames) do
-        createConfigRow(name)
-    end
-
-    for _, row in ipairs(ConfigSystem.rows) do
-        local isSelected = row.name == selected
-        row.label.TextColor3 = isSelected and Theme.accent or Theme.text
-    end
-
-    if ConfigSystem.emptyLabel then
-        if not ConfigSystem.supported then
-            ConfigSystem.emptyLabel.Text = "filesystem unavailable"
-            ConfigSystem.emptyLabel.Visible = true
-        elseif #visibleNames == 0 then
-            ConfigSystem.emptyLabel.Text = typed ~= "" and "not found" or "no configs"
-            ConfigSystem.emptyLabel.Visible = true
-        else
-            ConfigSystem.emptyLabel.Visible = false
+    clearConfigRows = function()
+        for _, row in ipairs(ConfigSystem.rows) do
+            if row.button and row.button.Parent then
+                row.button:Destroy()
+            end
         end
+
+        table.clear(ConfigSystem.rows)
     end
 
-    refreshRows()
-    return visibleNames
-end
+    local function buildFilteredConfigNames(filterText)
+        local names = getConfigList()
+        if filterText == "" then
+            return names
+        end
 
-local function getRequestedConfigName(preferSelected)
-    local selected = normalizeConfigName(ConfigSystem.selectedName)
-    local typed = normalizeConfigName(ConfigSystem.inputBox and ConfigSystem.inputBox.Text or "")
+        local filtered = {}
+        local normalizedFilter = string.lower(filterText)
 
-    if preferSelected and selected ~= "" then
-        return selected
+        for _, name in ipairs(names) do
+            if string.find(string.lower(name), normalizedFilter, 1, true) then
+                filtered[#filtered + 1] = name
+            end
+        end
+
+        return filtered
     end
 
-    if typed ~= "" then
-        return typed
+    local function createConfigRow(name)
+        local row = create("TextButton", {
+            Parent = ConfigSystem.results,
+            BackgroundColor3 = Theme.accent,
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            Size = UDim2.new(1, -2, 0, 18),
+            Text = "",
+            AutoButtonColor = false,
+            ZIndex = 44,
+        })
+
+        applyGradient(row, Color3.fromRGB(255, 255, 255), Color3.fromRGB(167, 167, 167), 90)
+
+        local label = createThemedText(row, {
+            Parent = row,
+            BackgroundTransparency = 1,
+            Position = UDim2.fromOffset(4, 0),
+            Size = UDim2.new(1, -8, 1, 0),
+            Font = Enum.Font.Code,
+            Text = name,
+            TextSize = 11,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            ZIndex = 45,
+        }, false)
+
+        row.MouseEnter:Connect(function()
+            row.BackgroundTransparency = 0.95
+        end)
+
+        row.MouseLeave:Connect(function()
+            row.BackgroundTransparency = 1
+        end)
+
+        row.MouseButton1Click:Connect(function()
+            ConfigSystem.selectedName = name
+            setConfigInputText(name)
+            resetConfigDeleteState()
+            refreshConfigControls(name, true)
+        end)
+
+        ConfigSystem.rows[#ConfigSystem.rows + 1] = {
+            button = row,
+            label = label,
+            name = name,
+        }
     end
 
-    if selected ~= "" then
-        return selected
+    refreshConfigControls = function(preferredName, syncNameBox)
+        if not ConfigSystem.menuBuilt then
+            return {}
+        end
+
+        local typed = normalizeConfigName(ConfigSystem.inputBox and ConfigSystem.inputBox.Text or "")
+        local names = getConfigList()
+        local selected = preferredName
+
+        if selected == nil or selected == "" or not table.find(names, selected) then
+            selected = ConfigSystem.selectedName
+        end
+
+        if selected == nil or selected == "" or not table.find(names, selected) then
+            selected = names[1]
+        end
+
+        if selected ~= nil and selected ~= "" and not table.find(names, selected) then
+            selected = nil
+        end
+
+        ConfigSystem.selectedName = selected
+
+        if syncNameBox and selected then
+            setConfigInputText(selected)
+            typed = selected
+        end
+
+        clearConfigRows()
+
+        local visibleNames = buildFilteredConfigNames(typed)
+        for _, name in ipairs(visibleNames) do
+            createConfigRow(name)
+        end
+
+        for _, row in ipairs(ConfigSystem.rows) do
+            local isSelected = row.name == selected
+            row.label.TextColor3 = isSelected and Theme.accent or Theme.text
+        end
+
+        if ConfigSystem.emptyLabel then
+            if not ConfigSystem.supported then
+                ConfigSystem.emptyLabel.Text = "filesystem unavailable"
+                ConfigSystem.emptyLabel.Visible = true
+            elseif #visibleNames == 0 then
+                ConfigSystem.emptyLabel.Text = typed ~= "" and "not found" or "no configs"
+                ConfigSystem.emptyLabel.Visible = true
+            else
+                ConfigSystem.emptyLabel.Visible = false
+            end
+        end
+
+        refreshRows()
+        return visibleNames
     end
 
-    return nil
+    getRequestedConfigName = function(preferSelected)
+        local selected = normalizeConfigName(ConfigSystem.selectedName)
+        local typed = normalizeConfigName(ConfigSystem.inputBox and ConfigSystem.inputBox.Text or "")
+
+        if preferSelected and selected ~= "" then
+            return selected
+        end
+
+        if typed ~= "" then
+            return typed
+        end
+
+        if selected ~= "" then
+            return selected
+        end
+
+        return nil
+    end
 end
 
-local function createConfigPopupButton(parent, text, position, size)
-    local shell = addShell(parent, size, position, false, 0, 42)
-    local label = createThemedText(shell.background, {
-        Parent = shell.background,
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 1, 0),
-        Font = Enum.Font.GothamMedium,
-        Text = text,
-        TextSize = 11,
-        ZIndex = 45,
-    }, false)
+do
+    local function createConfigPopupButton(parent, text, position, size)
+        local shell = addShell(parent, size, position, false, 0, 42)
+        local label = createThemedText(shell.background, {
+            Parent = shell.background,
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 1, 0),
+            Font = Enum.Font.GothamMedium,
+            Text = text,
+            TextSize = 11,
+            ZIndex = 45,
+        }, false)
 
-    local button = create("TextButton", {
-        Parent = shell.outline,
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 1, 0),
-        Text = "",
-        AutoButtonColor = false,
-        ZIndex = 46,
-    })
+        local button = create("TextButton", {
+            Parent = shell.outline,
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 1, 0),
+            Text = "",
+            AutoButtonColor = false,
+            ZIndex = 46,
+        })
 
-    button.MouseEnter:Connect(function()
-        shell.background.BackgroundColor3 = Theme.high
-    end)
+        button.MouseEnter:Connect(function()
+            shell.background.BackgroundColor3 = Theme.high
+        end)
 
-    button.MouseLeave:Connect(function()
-        shell.background.BackgroundColor3 = Theme.low
-    end)
+        button.MouseLeave:Connect(function()
+            shell.background.BackgroundColor3 = Theme.low
+        end)
 
-    return {
-        shell = shell,
-        label = label,
-        button = button,
-    }
+        return {
+            shell = shell,
+            label = label,
+            button = button,
+        }
+    end
+
+    local function initializeConfigPanel()
+        local configShell = addShell(WindowShell.background, UDim2.fromOffset(248, 224), UDim2.new(0, 8, 1, -252), false, 0, 40)
+        configShell.outline.Visible = false
+        configShell.outline.ClipsDescendants = true
+
+        local titleLabel = createThemedText(configShell.background, {
+            Parent = configShell.background,
+            BackgroundTransparency = 1,
+            Position = UDim2.fromOffset(9, 7),
+            Size = UDim2.new(1, -18, 0, 14),
+            Font = Enum.Font.GothamMedium,
+            Text = "Configs",
+            TextSize = 12,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            ZIndex = 44,
+        }, false)
+
+        local listFrame = create("ScrollingFrame", {
+            Parent = configShell.background,
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            Position = UDim2.fromOffset(9, 26),
+            Size = UDim2.new(1, -18, 0, 110),
+            CanvasSize = UDim2.fromOffset(0, 0),
+            ScrollBarImageColor3 = Theme.accent,
+            ScrollBarThickness = 4,
+            TopImage = "",
+            BottomImage = "",
+            MidImage = "",
+            ZIndex = 43,
+        })
+        registerTheme("accent", listFrame, "ScrollBarImageColor3")
+
+        local listLayout = create("UIListLayout", {
+            Parent = listFrame,
+            FillDirection = Enum.FillDirection.Vertical,
+            Padding = UDim.new(0, 3),
+            SortOrder = Enum.SortOrder.LayoutOrder,
+        })
+
+        listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            listFrame.CanvasSize = UDim2.fromOffset(0, listLayout.AbsoluteContentSize.Y)
+        end)
+
+        local emptyLabel = createThemedText(configShell.background, {
+            Parent = configShell.background,
+            BackgroundTransparency = 1,
+            Position = UDim2.fromOffset(12, 70),
+            Size = UDim2.new(1, -24, 0, 14),
+            Font = Enum.Font.GothamMedium,
+            Text = "not found",
+            TextSize = 12,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Visible = false,
+            ZIndex = 44,
+        }, true)
+
+        local inputShell = addShell(configShell.background, UDim2.new(1, -18, 0, 22), UDim2.fromOffset(9, 144), false, 0, 42)
+        local inputBox = create("TextBox", {
+            Parent = inputShell.background,
+            BackgroundTransparency = 1,
+            Position = UDim2.fromOffset(6, 0),
+            Size = UDim2.new(1, -12, 1, 0),
+            ClearTextOnFocus = false,
+            Font = Enum.Font.GothamMedium,
+            PlaceholderText = "search or create config",
+            PlaceholderColor3 = Theme.textDim,
+            Text = "",
+            TextColor3 = Theme.text,
+            TextSize = 12,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            ZIndex = 44,
+        })
+        registerTheme("text", inputBox, "TextColor3")
+        registerTheme("textDim", inputBox, "PlaceholderColor3")
+
+        local loadButton = createConfigPopupButton(configShell.background, "Load", UDim2.fromOffset(9, 174), UDim2.fromOffset(70, 18))
+        local saveButton = createConfigPopupButton(configShell.background, "Save", UDim2.fromOffset(86, 174), UDim2.fromOffset(70, 18))
+        local createButton = createConfigPopupButton(configShell.background, "Create", UDim2.fromOffset(163, 174), UDim2.fromOffset(76, 18))
+        local deleteButton = createConfigPopupButton(configShell.background, "Delete", UDim2.fromOffset(9, 198), UDim2.fromOffset(112, 18))
+        local refreshButton = createConfigPopupButton(configShell.background, "Refresh", UDim2.fromOffset(128, 198), UDim2.fromOffset(111, 18))
+
+        ConfigSystem.shell = configShell
+        ConfigSystem.results = listFrame
+        ConfigSystem.inputBox = inputBox
+        ConfigSystem.emptyLabel = emptyLabel
+        ConfigSystem.deleteButton = deleteButton.button
+        ConfigSystem.deleteLabel = deleteButton.label
+        ConfigSystem.loadButton = loadButton.button
+        ConfigSystem.saveButton = saveButton.button
+        ConfigSystem.createButton = createButton.button
+        ConfigSystem.refreshButton = refreshButton.button
+        ConfigSystem.titleLabel = titleLabel
+        ConfigSystem.button = ConfigButton
+    end
+
+    initializeConfigPanel()
 end
-
--- Config panel bootstrap
-local function initializeConfigPanel()
-    local configShell = addShell(WindowShell.background, UDim2.fromOffset(248, 224), UDim2.new(0, 8, 1, -252), false, 0, 40)
-    configShell.outline.Visible = false
-    configShell.outline.ClipsDescendants = true
-
-    local titleLabel = createThemedText(configShell.background, {
-        Parent = configShell.background,
-        BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(9, 7),
-        Size = UDim2.new(1, -18, 0, 14),
-        Font = Enum.Font.GothamMedium,
-        Text = "Configs",
-        TextSize = 12,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 44,
-    }, false)
-
-    local listFrame = create("ScrollingFrame", {
-        Parent = configShell.background,
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        Position = UDim2.fromOffset(9, 26),
-        Size = UDim2.new(1, -18, 0, 110),
-        CanvasSize = UDim2.fromOffset(0, 0),
-        ScrollBarImageColor3 = Theme.accent,
-        ScrollBarThickness = 4,
-        TopImage = "",
-        BottomImage = "",
-        MidImage = "",
-        ZIndex = 43,
-    })
-    registerTheme("accent", listFrame, "ScrollBarImageColor3")
-
-    local listLayout = create("UIListLayout", {
-        Parent = listFrame,
-        FillDirection = Enum.FillDirection.Vertical,
-        Padding = UDim.new(0, 3),
-        SortOrder = Enum.SortOrder.LayoutOrder,
-    })
-
-    listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        listFrame.CanvasSize = UDim2.fromOffset(0, listLayout.AbsoluteContentSize.Y)
-    end)
-
-    local emptyLabel = createThemedText(configShell.background, {
-        Parent = configShell.background,
-        BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(12, 70),
-        Size = UDim2.new(1, -24, 0, 14),
-        Font = Enum.Font.GothamMedium,
-        Text = "not found",
-        TextSize = 12,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        Visible = false,
-        ZIndex = 44,
-    }, true)
-
-    local inputShell = addShell(configShell.background, UDim2.new(1, -18, 0, 22), UDim2.fromOffset(9, 144), false, 0, 42)
-    local inputBox = create("TextBox", {
-        Parent = inputShell.background,
-        BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(6, 0),
-        Size = UDim2.new(1, -12, 1, 0),
-        ClearTextOnFocus = false,
-        Font = Enum.Font.GothamMedium,
-        PlaceholderText = "search or create config",
-        PlaceholderColor3 = Theme.textDim,
-        Text = "",
-        TextColor3 = Theme.text,
-        TextSize = 12,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 44,
-    })
-    registerTheme("text", inputBox, "TextColor3")
-    registerTheme("textDim", inputBox, "PlaceholderColor3")
-
-    local loadButton = createConfigPopupButton(configShell.background, "Load", UDim2.fromOffset(9, 174), UDim2.fromOffset(70, 18))
-    local saveButton = createConfigPopupButton(configShell.background, "Save", UDim2.fromOffset(86, 174), UDim2.fromOffset(70, 18))
-    local createButton = createConfigPopupButton(configShell.background, "Create", UDim2.fromOffset(163, 174), UDim2.fromOffset(76, 18))
-    local deleteButton = createConfigPopupButton(configShell.background, "Delete", UDim2.fromOffset(9, 198), UDim2.fromOffset(112, 18))
-    local refreshButton = createConfigPopupButton(configShell.background, "Refresh", UDim2.fromOffset(128, 198), UDim2.fromOffset(111, 18))
-
-    ConfigSystem.shell = configShell
-    ConfigSystem.results = listFrame
-    ConfigSystem.inputBox = inputBox
-    ConfigSystem.emptyLabel = emptyLabel
-    ConfigSystem.deleteButton = deleteButton.button
-    ConfigSystem.deleteLabel = deleteButton.label
-    ConfigSystem.loadButton = loadButton.button
-    ConfigSystem.saveButton = saveButton.button
-    ConfigSystem.createButton = createButton.button
-    ConfigSystem.refreshButton = refreshButton.button
-    ConfigSystem.titleLabel = titleLabel
-    ConfigSystem.button = ConfigButton
-end
-
-initializeConfigPanel()
 
 -- Panel visibility and quick actions
 do
@@ -3017,6 +3025,10 @@ relayoutAllSectionColumns = function()
     end
 end
 
+end
+
+do
+
 local function getAnchoredGuiPosition(guiObject)
     local guiSize = guiObject.AbsoluteSize
     local anchorOffset = Vector2.new(guiSize.X * guiObject.AnchorPoint.X, guiSize.Y * guiObject.AnchorPoint.Y)
@@ -3192,6 +3204,10 @@ makeDraggable(WindowShell.header, Window)
 makeDraggable(WatermarkShell.outline, WatermarkShell.outline)
 makeDraggable(KeybindShell.outline, KeybindShell.outline)
 makeResizable(WindowShell.resizeHandle, Window, WindowMinSize)
+
+end
+
+do
 
 getSection = function(tabId, columnIndex, name)
     local key = tabId .. "_" .. columnIndex .. "_" .. name
@@ -3415,6 +3431,8 @@ end
 
 getInlineBindText = function(entry)
     return formatToggleBindText(entry)
+end
+
 end
 
 do
@@ -4525,8 +4543,6 @@ updateWatermark = function()
         WatermarkShell.outline.Size = UDim2.fromOffset(StatsState.watermarkWidth, 24)
         StatsState.lastWatermarkTextUpdate = now
     end
-end
-
 end
 
 end
