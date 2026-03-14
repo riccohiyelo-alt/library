@@ -5365,6 +5365,8 @@ do
 local function renderEntry(entry)
     if entry.kind == "toggle" then
         Render.createToggleRow(entry)
+    elseif entry.kind == "esppreview" then
+        Render.createESPPreviewRow(entry)
     elseif entry.kind == "button" then
         Render.createButtonRow(entry)
     elseif entry.kind == "slider" then
