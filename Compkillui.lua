@@ -4570,7 +4570,7 @@ Render.createESPPreviewRow = function(entry)
         end
 
         if character.PrimaryPart then
-            character:SetPrimaryPartCFrame(CFrame.new(Vector3.new(0, -1, -6)))
+            character:SetPrimaryPartCFrame(CFrame.new(Vector3.new(0, -0.25, -6)) * CFrame.Angles(0, math.rad(180), 0))
         end
 
         updatePreviewPosition()
