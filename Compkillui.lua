@@ -4564,15 +4564,13 @@ Render.createESPPreviewRow = function(entry)
         end
     end
 
-    local rotation = 0
     trackRuntimeConnection(Services.RunService.RenderStepped:Connect(function()
         if not shell.outline.Parent then
             return
         end
 
-        rotation = rotation + 0.5
         if character.PrimaryPart then
-            character:SetPrimaryPartCFrame(CFrame.new(Vector3.new(0, 1, -6)) * CFrame.Angles(0, math.rad(rotation), 0))
+            character:SetPrimaryPartCFrame(CFrame.new(Vector3.new(0, -1, -6)))
         end
 
         updatePreviewPosition()
