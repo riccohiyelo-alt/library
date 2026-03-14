@@ -4175,78 +4175,146 @@ local function getFlagValue(flagName)
 end
 
 Render.createESPPreviewRow = function(entry)
-    createSubsectionHeader(entry)
-    local section = Layout.getSection(entry.tab, entry.column, entry.section)
+    local previewSize = Vector2.new(300, 325)
 
-    local rowShell = addShell(section.holder, UDim2.new(1, -2, 0, 220), UDim2.fromOffset(0, 0), false, 0, 21)
-    local background = rowShell.background
+    local function getPreviewPosition()
+        local viewportSize = getViewportSize()
+        local x = 20
+        local y = 110
 
+        if Window and Window.Parent then
+            x = Window.AbsolutePosition.X + Window.AbsoluteSize.X + 8
+            y = Window.AbsolutePosition.Y + 30
+        end
+
+        return UDim2.fromOffset(
+            math.clamp(x, 10, math.max(10, viewportSize.X - previewSize.X - 10)),
+            math.clamp(y, 10, math.max(10, viewportSize.Y - previewSize.Y - 10))
+        )
+    end
+
+    local shell = addShell(ScreenGui, UDim2.fromOffset(previewSize.X, previewSize.Y), getPreviewPosition(), true, 0, 32)
+    shell.outline.Visible = MenuState.introDone and MenuState.visible
+    shell.outline.ClipsDescendants = true
+
+    local header = create("Frame", {
+        Parent = shell.background,
+        BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(6, 4),
+        Size = UDim2.new(1, -12, 0, 18),
+        Active = true,
+        ZIndex = 34,
+    })
+
+    createThemedText(header, {
+        Parent = header,
+        BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(2, 0),
+        Size = UDim2.new(1, -4, 1, 0),
+        Font = Enum.Font.GothamMedium,
+        Text = entry.name ~= "" and entry.name or "ESP Preview",
+        TextSize = 12,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 35,
+    }, false)
+
+    local previewArea = create("Frame", {
+        Parent = shell.background,
+        BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(6, 24),
+        Size = UDim2.new(1, -12, 1, -30),
+        ZIndex = 33,
+    })
+
+    local viewportShell = addShell(previewArea, UDim2.new(1, 0, 1, 0), UDim2.fromOffset(0, 0), false, 0, 33)
     local viewport = create("ViewportFrame", {
-        Parent = background,
+        Parent = viewportShell.background,
+        BackgroundColor3 = Color3.fromRGB(6, 10, 16),
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 1, 0),
+        ZIndex = 34,
+    })
+
+    local overlay = create("Frame", {
+        Parent = viewportShell.background,
         BackgroundTransparency = 1,
         Size = UDim2.new(1, 0, 1, 0),
-        ZIndex = 22,
+        ZIndex = 35,
     })
 
     local camera = create("Camera", {
-        Parent = viewport,
+        Parent = Services.Workspace,
         FieldOfView = 70,
         CameraType = Enum.CameraType.Scriptable,
+        Name = generateRuntimeName("NeverPastePreviewCamera"),
     })
     viewport.CurrentCamera = camera
 
-    local cleanDescription = Instance.new("HumanoidDescription")
-    local character
-    pcall(function()
-        character = Services.Players:CreateHumanoidModelFromDescription(cleanDescription, Enum.HumanoidRigType.R15)
-    end)
+    local function createPreviewCharacter()
+        local playerCharacter = LocalPlayer and cloneInstance(LocalPlayer.Character)
+        if typeof(playerCharacter) == "Instance" then
+            local cloned
+            pcall(function()
+                playerCharacter.Archivable = true
+                cloned = playerCharacter:Clone()
+            end)
+            if cloned then
+                local animate = cloned:FindFirstChild("Animate")
+                if animate then
+                    animate:Destroy()
+                end
+                return cloned
+            end
+        end
+
+        local fallbackDescription = Instance.new("HumanoidDescription")
+        local fallbackCharacter
+        pcall(function()
+            fallbackCharacter = Services.Players:CreateHumanoidModelFromDescription(fallbackDescription, Enum.HumanoidRigType.R15)
+        end)
+        return fallbackCharacter
+    end
+
+    local character = createPreviewCharacter()
     if not character then
         character = Instance.new("Model")
         local root = Instance.new("Part")
         root.Name = "HumanoidRootPart"
+        root.Size = Vector3.new(2, 2, 1)
+        root.Transparency = 1
+        root.Anchored = true
+        root.CanCollide = false
         root.Parent = character
         character.PrimaryPart = root
     end
+
     character.Name = "PreviewDummy"
 
-    local root = character:WaitForChild("HumanoidRootPart", 2)
-    if root then 
+    local root = character:FindFirstChild("HumanoidRootPart") or character:WaitForChild("HumanoidRootPart", 2)
+    if root then
         character.PrimaryPart = root
     end
 
-    local animateScript = character:FindFirstChild("Animate")
-    if animateScript then
-        animateScript:Destroy()
-    end
-
     character.Parent = viewport
-    
-    local lookCFrame = CFrame.new(Vector3.new(0, 1, -6), Vector3.new(0, 1, 0))
-    if character.PrimaryPart then
-        character:SetPrimaryPartCFrame(lookCFrame)
-    end
-    camera.CFrame = CFrame.new(Vector3.new(0, 1, 0))
 
     local holder = create("Frame", {
-        Parent = viewport,
+        Parent = overlay,
         BackgroundTransparency = 1,
         Position = UDim2.new(0.5, 0, 0.5, 10),
         Size = UDim2.fromOffset(135, 190),
         AnchorPoint = Vector2.new(0.5, 0.5),
-        ZIndex = 23,
+        ZIndex = 36,
     })
-    
+
     local cacheInfoFrame = create("Frame", {
-        Parent = nil,
-        Visible = false
+        Parent = shell.background,
+        BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(-1000, -1000),
+        Size = UDim2.fromOffset(0, 0),
+        Visible = false,
     })
 
     local objects = { holder = holder, cache = cacheInfoFrame }
-    
-    objects.box_outline = create("UIStroke" , {
-        Parent = cacheInfoFrame,
-        LineJoinMode = Enum.LineJoinMode.Miter
-    })
 
     objects.name = create("TextLabel", {
         Parent = cacheInfoFrame,
@@ -4258,37 +4326,45 @@ Render.createESPPreviewRow = function(entry)
         AutomaticSize = Enum.AutomaticSize.Y,
         Font = Enum.Font.GothamMedium,
         TextSize = 12,
-        ZIndex = 24,
+        ZIndex = 37,
     })
-    create("UIStroke", { Parent = objects.name, Transparency = 0.5, Thickness = 1, LineJoinMode = Enum.LineJoinMode.Miter })
+    create("UIStroke", {
+        Parent = objects.name,
+        Transparency = 0.5,
+        Thickness = 1,
+        LineJoinMode = Enum.LineJoinMode.Miter,
+    })
 
-    objects.box_handler = create("Frame", {
+    objects.boxHandler = create("Frame", {
         Parent = cacheInfoFrame,
         BackgroundTransparency = 1,
         Position = UDim2.new(0, 1, 0, 1),
         Size = UDim2.new(1, -2, 1, -2),
-        ZIndex = 24,
+        ZIndex = 36,
     })
-    objects.box_color = create("UIStroke", {
-        Parent = objects.box_handler,
+    objects.boxColor = create("UIStroke", {
+        Parent = objects.boxHandler,
         LineJoinMode = Enum.LineJoinMode.Miter,
-        Color = Color3.new(1, 1, 1)
+        Color = Color3.new(1, 1, 1),
     })
     objects.outline = create("Frame", {
-        Parent = objects.box_handler,
+        Parent = objects.boxHandler,
         BackgroundTransparency = 1,
         Position = UDim2.new(0, 1, 0, 1),
         Size = UDim2.new(1, -2, 1, -2),
-        ZIndex = 24,
+        ZIndex = 36,
     })
-    create("UIStroke", { Parent = objects.outline, LineJoinMode = Enum.LineJoinMode.Miter })
+    create("UIStroke", {
+        Parent = objects.outline,
+        LineJoinMode = Enum.LineJoinMode.Miter,
+    })
 
     objects.corners = create("Frame", {
         Parent = cacheInfoFrame,
         BackgroundTransparency = 1,
         Position = UDim2.new(0, -1, 0, 2),
         Size = UDim2.new(1, 0, 1, 0),
-        ZIndex = 24,
+        ZIndex = 36,
     })
 
     local function makeCorner(parent, position, size, anchor, rotation)
@@ -4300,15 +4376,15 @@ Render.createESPPreviewRow = function(entry)
             Size = size,
             AnchorPoint = anchor or Vector2.new(0, 0),
             Rotation = rotation or 0,
-            ZIndex = 24,
+            ZIndex = 36,
         })
         local inner = create("Frame", {
             Parent = frame,
             BorderSizePixel = 0,
             Position = UDim2.new(0, 1, 0, 1),
             Size = UDim2.new(1, -2, 1, -2),
-            ZIndex = 25,
-            BackgroundColor3 = Color3.new(1, 1, 1)
+            ZIndex = 37,
+            BackgroundColor3 = Color3.new(1, 1, 1),
         })
         return { outline = frame, inner = inner }
     end
@@ -4321,7 +4397,7 @@ Render.createESPPreviewRow = function(entry)
     objects.corner6 = makeCorner(objects.corners, UDim2.new(0, 0, 1, -4), UDim2.new(0, 3, 0.25, 1), Vector2.new(0, 1), 180)
     objects.corner7 = makeCorner(objects.corners, UDim2.new(1, -1, 1, -2), UDim2.new(0.4, 0, 0, 3), Vector2.new(1, 1))
     objects.corner8 = makeCorner(objects.corners, UDim2.new(1, 0, 1, -4), UDim2.new(0, 3, 0.25, 1), Vector2.new(1, 1), 180)
-    
+
     objects.corner2.inner.Position = UDim2.new(0, 1, 0, -2)
     objects.corner2.inner.Size = UDim2.new(1, -2, 1, 1)
     objects.corner4.inner.Position = UDim2.new(0, 1, 0, -2)
@@ -4331,37 +4407,42 @@ Render.createESPPreviewRow = function(entry)
     objects.corner8.inner.Position = UDim2.new(0, 1, 0, -2)
     objects.corner8.inner.Size = UDim2.new(1, -2, 1, 1)
 
-    objects.healthbar_holder = create("Frame", {
+    objects.healthbarHolder = create("Frame", {
         Parent = cacheInfoFrame,
         BackgroundColor3 = Color3.new(0, 0, 0),
         BorderSizePixel = 0,
         Position = UDim2.new(0, -5, 0, 0),
         Size = UDim2.new(0, 4, 1, 0),
         AnchorPoint = Vector2.new(1, 0),
-        ZIndex = 24,
+        ZIndex = 36,
     })
 
     objects.healthbar = create("Frame", {
-        Parent = objects.healthbar_holder,
+        Parent = objects.healthbarHolder,
         BackgroundColor3 = Color3.new(1, 1, 1),
         BorderSizePixel = 0,
         Position = UDim2.new(0, 1, 0, 1),
         Size = UDim2.new(1, -2, 1, -2),
-        ZIndex = 25,
+        ZIndex = 37,
     })
 
     objects.distance = create("TextLabel", {
         Parent = cacheInfoFrame,
         BackgroundTransparency = 1,
-        Text = "127st",
+        Text = "127 studs",
         Position = UDim2.new(0, 0, 1, 5),
         Size = UDim2.new(1, 0, 0, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
         Font = Enum.Font.GothamMedium,
         TextSize = 12,
-        ZIndex = 24,
+        ZIndex = 37,
     })
-    create("UIStroke", { Parent = objects.distance, Transparency = 0.5, Thickness = 1, LineJoinMode = Enum.LineJoinMode.Miter })
+    create("UIStroke", {
+        Parent = objects.distance,
+        Transparency = 0.5,
+        Thickness = 1,
+        LineJoinMode = Enum.LineJoinMode.Miter,
+    })
 
     objects.weapon = create("TextLabel", {
         Parent = cacheInfoFrame,
@@ -4372,66 +4453,145 @@ Render.createESPPreviewRow = function(entry)
         AutomaticSize = Enum.AutomaticSize.Y,
         Font = Enum.Font.GothamMedium,
         TextSize = 12,
-        ZIndex = 24,
+        ZIndex = 37,
     })
-    create("UIStroke", { Parent = objects.weapon, Transparency = 0.5, Thickness = 1, LineJoinMode = Enum.LineJoinMode.Miter })
+    create("UIStroke", {
+        Parent = objects.weapon,
+        Transparency = 0.5,
+        Thickness = 1,
+        LineJoinMode = Enum.LineJoinMode.Miter,
+    })
 
-    local function change_health()
-        if objects.healthbar_holder.Parent ~= objects.holder then return end
-        local maxHealth = 100
-        local multiplier = maxHealth * math.abs(math.sin(tick() * 2)) / maxHealth
-        local lowColor = getFlagColor("Health_Low")
-        local highColor = getFlagColor("Health_High")
-        local color = lowColor:Lerp(highColor, multiplier)
-        
-        objects.healthbar.Size = UDim2.new(1, -2, multiplier, -2)
-        objects.healthbar.Position = UDim2.new(0, 1, 1 - multiplier, 1)
-        objects.healthbar.BackgroundColor3 = color
+    local dragging = false
+    local dragStart
+    local dragInput
+    local startPosition
+
+    header.InputBegan:Connect(function(input)
+        if input.UserInputType ~= Enum.UserInputType.MouseButton1 then
+            return
+        end
+
+        dragging = true
+        dragStart = input.Position
+        startPosition = shell.outline.Position
+
+        local releaseConnection
+        releaseConnection = input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+                dragInput = nil
+                if releaseConnection then
+                    releaseConnection:Disconnect()
+                end
+            end
+        end)
+    end)
+
+    header.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            dragInput = input
+        end
+    end)
+
+    trackRuntimeConnection(Services.UserInputService.InputChanged:Connect(function(input)
+        if not dragging or input ~= dragInput then
+            return
+        end
+
+        local delta = input.Position - dragStart
+        shell.outline.Position = UDim2.new(
+            startPosition.X.Scale,
+            startPosition.X.Offset + delta.X,
+            startPosition.Y.Scale,
+            startPosition.Y.Offset + delta.Y
+        )
+    end))
+
+    local rotation = 0
+
+    local function updatePreviewVisibility()
+        shell.outline.Visible = (entry.visible ~= false) and MenuState.introDone and MenuState.visible
     end
 
-    local function refresh_elements()
-        objects.holder.Parent = getFlagState("Enabled") and viewport or cacheInfoFrame
+    local function updateHealthBar()
+        if objects.healthbarHolder.Parent ~= holder then
+            return
+        end
+
+        local alpha = math.abs(math.sin(tick() * 2))
+        local lowColor = getFlagColor("Health_Low")
+        local highColor = getFlagColor("Health_High")
+        objects.healthbar.Size = UDim2.new(1, -2, alpha, -2)
+        objects.healthbar.Position = UDim2.new(0, 1, 1 - alpha, 1)
+        objects.healthbar.BackgroundColor3 = lowColor:Lerp(highColor, alpha)
+    end
+
+    local function refreshPreview()
+        updatePreviewVisibility()
+
+        local enabled = getFlagState("Enabled")
+        holder.Visible = enabled
 
         objects.name.TextColor3 = getFlagColor("Name_Color")
-        objects.name.Parent = getFlagState("Names") and objects.holder or cacheInfoFrame
+        objects.name.Parent = enabled and getFlagState("Names") and holder or cacheInfoFrame
 
         objects.distance.TextColor3 = getFlagColor("Distance_Color")
-        objects.distance.Parent = getFlagState("Distance") and objects.holder or cacheInfoFrame
+        objects.distance.Parent = enabled and getFlagState("Distance") and holder or cacheInfoFrame
 
         objects.weapon.TextColor3 = getFlagColor("Weapon_Color")
-        objects.weapon.Parent = getFlagState("Weapon") and objects.holder or cacheInfoFrame
+        objects.weapon.Parent = enabled and getFlagState("Weapon") and holder or cacheInfoFrame
 
-        objects.healthbar_holder.Parent = getFlagState("Healthbar") and objects.holder or cacheInfoFrame
+        objects.healthbarHolder.Parent = enabled and getFlagState("Healthbar") and holder or cacheInfoFrame
 
-        local is_corner = getFlagValue("Box_Type") == "Corner"
+        local boxColor = getFlagColor("Box_Color")
+        objects.boxColor.Color = boxColor
+        for index = 1, 8 do
+            objects["corner" .. index].inner.BackgroundColor3 = boxColor
+        end
 
-        if getFlagState("Boxes") then
-            if is_corner then
-                objects.corners.Parent = objects.holder
-                objects.box_handler.Parent = cacheInfoFrame
-                objects.box_outline.Parent = cacheInfoFrame
-            else
-                objects.box_handler.Parent = objects.holder
-                objects.box_outline.Parent = objects.holder
+        if enabled and getFlagState("Boxes") then
+            if getFlagValue("Box_Type") == "Full" then
+                objects.boxHandler.Parent = holder
                 objects.corners.Parent = cacheInfoFrame
+            else
+                objects.corners.Parent = holder
+                objects.boxHandler.Parent = cacheInfoFrame
             end
         else
             objects.corners.Parent = cacheInfoFrame
-            objects.box_handler.Parent = cacheInfoFrame
-            objects.box_outline.Parent = cacheInfoFrame
-        end
-
-        local boxCol = getFlagColor("Box_Color")
-        objects.box_color.Color = boxCol
-        for i = 1, 8 do
-            objects["corner"..i].inner.BackgroundColor3 = boxCol
+            objects.boxHandler.Parent = cacheInfoFrame
         end
     end
 
+    if character.PrimaryPart then
+        camera.CFrame = CFrame.new(Vector3.new(0, 1, 0), Vector3.new(0, 1, -6))
+        character:SetPrimaryPartCFrame(CFrame.new(Vector3.new(0, 1, -6)))
+    end
+
     trackRuntimeConnection(Services.RunService.RenderStepped:Connect(function()
-        change_health()
-        refresh_elements()
+        if not shell.outline.Parent then
+            return
+        end
+
+        if character.PrimaryPart then
+            rotation = (rotation + 0.5) % 360
+            character:SetPrimaryPartCFrame(
+                CFrame.new(Vector3.new(0, 1, -6)) * CFrame.Angles(0, math.rad(rotation), 0)
+            )
+        end
+
+        updateHealthBar()
+        refreshPreview()
     end))
+
+    entry.ui = {
+        row = shell.outline,
+        shell = shell,
+        character = character,
+        camera = camera,
+        cache = cacheInfoFrame,
+    }
 end
 
 for _, entry in ipairs(Entries) do
@@ -5242,6 +5402,14 @@ WindowLifecycle.clearState = function()
         if entry.keybindDisplay and entry.keybindDisplay.row and entry.keybindDisplay.row.Parent then
             entry.keybindDisplay.row:Destroy()
         end
+        if entry.kind == "esppreview" and entry.ui then
+            destroyInstance(entry.ui.character)
+            destroyInstance(entry.ui.camera)
+            destroyInstance(entry.ui.cache)
+            if entry.ui.shell and entry.ui.shell.outline and entry.ui.shell.outline.Parent then
+                entry.ui.shell.outline:Destroy()
+            end
+        end
     end
 
     for _, tab in pairs(Tabs) do
@@ -5395,6 +5563,9 @@ function ControlMethods:Set(value)
 end
 
 function ControlMethods:SetVisible(state)
+    if self.entry then
+        self.entry.visible = state ~= false
+    end
     if self.entry and self.entry.ui and self.entry.ui.row then
         self.entry.ui.row.Visible = state ~= false
     end
