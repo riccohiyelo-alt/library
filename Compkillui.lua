@@ -4268,6 +4268,36 @@ Render.createESPPreviewRow = function(entry)
     viewport.CurrentCamera = camera
 
     local function createPreviewCharacter()
+        if LocalPlayer and LocalPlayer.Character then
+            local originalArchivable = LocalPlayer.Character.Archivable
+            LocalPlayer.Character.Archivable = true
+            local character = LocalPlayer.Character:Clone()
+            LocalPlayer.Character.Archivable = originalArchivable
+            
+            if character then
+                for _, descendant in ipairs(character:GetDescendants()) do
+                    if descendant:IsA("BasePart") then
+                        descendant.Anchored = true
+                        descendant.CanCollide = false
+                    elseif descendant:IsA("Script") or descendant:IsA("LocalScript") or descendant:IsA("Animator") then
+                        descendant:Destroy()
+                    end
+                end
+                
+                local humanoid = character:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                    humanoid.AutoRotate = false
+                    humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+                end
+                
+                local root = character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
+                if root then
+                    character.PrimaryPart = root
+                    return character
+                end
+            end
+        end
+
         local character = Instance.new("Model")
         
         local root = Instance.new("Part", character)
