@@ -4176,6 +4176,14 @@ end
 
 Render.createESPPreviewRow = function(entry)
     local previewSize = Vector2.new(300, 325)
+    local previewGui = create("ScreenGui", {
+        Parent = RootGui,
+        Name = generateRuntimeName("NeverPastePreviewUI"),
+        ResetOnSpawn = false,
+        IgnoreGuiInset = true,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+        DisplayOrder = ScreenGui.DisplayOrder,
+    })
 
     local function getPreviewPosition()
         local viewportSize = getViewportSize()
@@ -4183,8 +4191,8 @@ Render.createESPPreviewRow = function(entry)
         local y = 110
 
         if Window and Window.Parent then
-            x = Window.AbsolutePosition.X + Window.AbsoluteSize.X + 8
-            y = Window.AbsolutePosition.Y + 30
+            x = Window.AbsolutePosition.X
+            y = Window.AbsolutePosition.Y + Window.AbsoluteSize.Y + 2
         end
 
         return UDim2.fromOffset(
@@ -4193,7 +4201,7 @@ Render.createESPPreviewRow = function(entry)
         )
     end
 
-    local shell = addShell(ScreenGui, UDim2.fromOffset(previewSize.X, previewSize.Y), getPreviewPosition(), true, 0, 32)
+    local shell = addShell(previewGui, UDim2.fromOffset(previewSize.X, previewSize.Y), getPreviewPosition(), true, 0, 32)
     shell.outline.Visible = MenuState.introDone and MenuState.visible
     shell.outline.ClipsDescendants = true
 
@@ -4463,6 +4471,7 @@ Render.createESPPreviewRow = function(entry)
     })
 
     local dragging = false
+    local dockedToWindow = true
     local dragStart
     local dragInput
     local startPosition
@@ -4473,6 +4482,7 @@ Render.createESPPreviewRow = function(entry)
         end
 
         dragging = true
+        dockedToWindow = false
         dragStart = input.Position
         startPosition = shell.outline.Position
 
@@ -4500,18 +4510,31 @@ Render.createESPPreviewRow = function(entry)
         end
 
         local delta = input.Position - dragStart
-        shell.outline.Position = UDim2.new(
-            startPosition.X.Scale,
+        local anchoredPosition = Vector2.new(
             startPosition.X.Offset + delta.X,
-            startPosition.Y.Scale,
             startPosition.Y.Offset + delta.Y
+        )
+        local clampedPosition = clampGuiPositionToViewport(shell.outline, anchoredPosition)
+        shell.outline.Position = UDim2.fromOffset(
+            clampedPosition.X,
+            clampedPosition.Y
         )
     end))
 
     local rotation = 0
 
     local function updatePreviewVisibility()
-        shell.outline.Visible = (entry.visible ~= false) and MenuState.introDone and MenuState.visible
+        local isVisible = (entry.visible ~= false) and MenuState.introDone and MenuState.visible
+        previewGui.Enabled = isVisible
+        shell.outline.Visible = isVisible
+    end
+
+    local function updatePreviewPosition()
+        if dragging or not dockedToWindow or not shell.outline.Parent then
+            return
+        end
+
+        shell.outline.Position = getPreviewPosition()
     end
 
     local function updateHealthBar()
@@ -4574,6 +4597,7 @@ Render.createESPPreviewRow = function(entry)
             return
         end
 
+        updatePreviewPosition()
         if character.PrimaryPart then
             rotation = (rotation + 0.5) % 360
             character:SetPrimaryPartCFrame(
@@ -4588,6 +4612,7 @@ Render.createESPPreviewRow = function(entry)
     entry.ui = {
         row = shell.outline,
         shell = shell,
+        gui = previewGui,
         character = character,
         camera = camera,
         cache = cacheInfoFrame,
@@ -5408,6 +5433,7 @@ WindowLifecycle.clearState = function()
             destroyInstance(entry.ui.character)
             destroyInstance(entry.ui.camera)
             destroyInstance(entry.ui.cache)
+            destroyInstance(entry.ui.gui)
             if entry.ui.shell and entry.ui.shell.outline and entry.ui.shell.outline.Parent then
                 entry.ui.shell.outline:Destroy()
             end
