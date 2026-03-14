@@ -828,46 +828,12 @@ ControlMethods.__index = ControlMethods
 -- Forward declarations
 local DefaultTabId
 local CurrentTab
-local selectTab
-local stopMenuTween
-local rebuildSearchResults
-local closeSearch
-local closeInfo
-local closeSettings
-local closeDropdown
-local refreshDropdownOverlay
-local closeMiniPanels
-local closeConfigMenu
-local toggleSearch
-local toggleInfo
-local toggleSettings
-local toggleConfigMenu
-local getSection
-local createTab
-local createToggleRow
-local createButtonRow
-local createSliderRow
-local createTextboxRow
-local createDropdownRow
-local createKeybindRow
-local createColorRow
-local closeBindPopup
-local closePicker
-local animateMenuVisibility
-local refreshKeybindList
-local updateShellSize
-local updateWindowRestPosition
-local getMenuHiddenPosition
-local reflowTabButtons
-local relayoutSectionColumn
-local relayoutAllSectionColumns
-local colorToHex
-local openBindPopup
-local getInlineBindText
-local buildConfigMenu
-local playIntro
-local clearWindowState
-local revealWindowImmediate
+local Panels = {}
+local Layout = {}
+local Render = {}
+local Motion = {}
+local WindowLifecycle = {}
+local ConfigOps = {}
 
 -- Shell and overlay assembly
 local WindowShell = addShell(ScreenGui, UDim2.fromOffset(658, 476), UDim2.fromOffset(0, 0), true, 0, 10)
@@ -2133,16 +2099,8 @@ local function setDropdownValues(entry, values, preferredValue)
     end
 end
 
-local exportConfigData
-local applyConfigData
-local refreshConfigControls
-local resetConfigDeleteState
-local clearConfigRows
-local setConfigInputText
-local getRequestedConfigName
-
 do
-    exportConfigData = function(useDefaults)
+    ConfigOps.exportData = function(useDefaults)
         local payload = {
             meta = {
                 title = Runtime.title,
@@ -2161,7 +2119,7 @@ do
         return payload
     end
 
-    applyConfigData = function(payload)
+    ConfigOps.applyData = function(payload)
         if type(payload) ~= "table" then
             return false, "invalid config payload"
         end
@@ -2186,14 +2144,14 @@ do
 
         refreshRows()
         updateWatermark()
-        resetConfigDeleteState()
-        if refreshConfigControls and ConfigSystem.menuBuilt then
-            refreshConfigControls(ConfigSystem.selectedName, false)
+        ConfigOps.resetDeleteState()
+        if ConfigOps.refreshControls and ConfigSystem.menuBuilt then
+            ConfigOps.refreshControls(ConfigSystem.selectedName, false)
         end
         return true
     end
 
-    local function getConfigList()
+    ConfigOps.getList = function()
         if not ConfigSystem.supported then
             return {}
         end
@@ -2222,7 +2180,7 @@ do
         return names
     end
 
-    setConfigInputText = function(value)
+    ConfigOps.setInputText = function(value)
         if not ConfigSystem.inputBox then
             return
         end
@@ -2232,14 +2190,14 @@ do
         ConfigSystem.syncing = false
     end
 
-    resetConfigDeleteState = function()
+    ConfigOps.resetDeleteState = function()
         ConfigSystem.deleteConfirmName = nil
         if ConfigSystem.deleteLabel then
             ConfigSystem.deleteLabel.Text = "Delete"
         end
     end
 
-    clearConfigRows = function()
+    ConfigOps.clearRows = function()
         for _, row in ipairs(ConfigSystem.rows) do
             if row.button and row.button.Parent then
                 row.button:Destroy()
@@ -2248,9 +2206,11 @@ do
 
         table.clear(ConfigSystem.rows)
     end
+end
 
+do
     local function buildFilteredConfigNames(filterText)
-        local names = getConfigList()
+        local names = ConfigOps.getList()
         if filterText == "" then
             return names
         end
@@ -2303,9 +2263,9 @@ do
 
         row.MouseButton1Click:Connect(function()
             ConfigSystem.selectedName = name
-            setConfigInputText(name)
-            resetConfigDeleteState()
-            refreshConfigControls(name, true)
+            ConfigOps.setInputText(name)
+            ConfigOps.resetDeleteState()
+            ConfigOps.refreshControls(name, true)
         end)
 
         ConfigSystem.rows[#ConfigSystem.rows + 1] = {
@@ -2315,13 +2275,13 @@ do
         }
     end
 
-    refreshConfigControls = function(preferredName, syncNameBox)
+    ConfigOps.refreshControls = function(preferredName, syncNameBox)
         if not ConfigSystem.menuBuilt then
             return {}
         end
 
         local typed = normalizeConfigName(ConfigSystem.inputBox and ConfigSystem.inputBox.Text or "")
-        local names = getConfigList()
+        local names = ConfigOps.getList()
         local selected = preferredName
 
         if selected == nil or selected == "" or not table.find(names, selected) then
@@ -2339,11 +2299,11 @@ do
         ConfigSystem.selectedName = selected
 
         if syncNameBox and selected then
-            setConfigInputText(selected)
+            ConfigOps.setInputText(selected)
             typed = selected
         end
 
-        clearConfigRows()
+        ConfigOps.clearRows()
 
         local visibleNames = buildFilteredConfigNames(typed)
         for _, name in ipairs(visibleNames) do
@@ -2371,7 +2331,7 @@ do
         return visibleNames
     end
 
-    getRequestedConfigName = function(preferSelected)
+    ConfigOps.getRequestedName = function(preferSelected)
         local selected = normalizeConfigName(ConfigSystem.selectedName)
         local typed = normalizeConfigName(ConfigSystem.inputBox and ConfigSystem.inputBox.Text or "")
 
@@ -2531,18 +2491,18 @@ end
 do
 
 do
-closeSearch = function()
+Panels.closeSearch = function()
     MenuState.searchOpen = false
     SearchShell.outline.Visible = false
     SearchShell.input:ReleaseFocus()
 end
 
-closeInfo = function()
+Panels.closeInfo = function()
     MenuState.infoOpen = false
     InfoShell.outline.Visible = false
 end
 
-closeSettings = function()
+Panels.closeSettings = function()
     MenuState.settingsOpen = false
     SettingsShell.outline.Visible = false
     SettingsPanel.bindListening = false
@@ -2551,22 +2511,22 @@ closeSettings = function()
     end
 end
 
-closeConfigMenu = function()
+Panels.closeConfigMenu = function()
     if ConfigSystem.shell then
         ConfigSystem.shell.outline.Visible = false
     end
 
-    resetConfigDeleteState()
+    ConfigOps.resetDeleteState()
 end
 
-closeMiniPanels = function()
-    closeSearch()
-    closeInfo()
-    closeSettings()
-    closeConfigMenu()
+Panels.closeMiniPanels = function()
+    Panels.closeSearch()
+    Panels.closeInfo()
+    Panels.closeSettings()
+    Panels.closeConfigMenu()
 end
 
-closeDropdown = function()
+Panels.closeDropdown = function()
     if DropdownPanel.entry then
         DropdownPanel.entry.open = false
     end
@@ -2588,7 +2548,7 @@ closeDropdown = function()
     end
 end
 
-refreshDropdownOverlay = function()
+Panels.refreshDropdownOverlay = function()
     if not DropdownPanel.shell or not DropdownPanel.list then
         return
     end
@@ -2602,7 +2562,7 @@ refreshDropdownOverlay = function()
     end
 
     if not openEntry or not openEntry.ui or not openEntry.ui.button or not openEntry.ui.button.Parent then
-        closeDropdown()
+        Panels.closeDropdown()
         return
     end
 
@@ -2648,7 +2608,7 @@ refreshDropdownOverlay = function()
                 else
                     openEntry.value = option
                     safeCallback(openEntry.callback, openEntry.value)
-                    closeDropdown()
+                    Panels.closeDropdown()
                 end
 
                 refreshRows()
@@ -2689,34 +2649,34 @@ end
 
 do
 
-toggleSearch = function()
+Panels.toggleSearch = function()
     MenuState.searchOpen = not MenuState.searchOpen
     SearchShell.outline.Visible = MenuState.searchOpen
     if MenuState.searchOpen then
-        closeInfo()
-        closeSettings()
+        Panels.closeInfo()
+        Panels.closeSettings()
         SearchShell.input:CaptureFocus()
     else
         SearchShell.input:ReleaseFocus()
     end
 end
 
-toggleInfo = function()
+Panels.toggleInfo = function()
     MenuState.infoOpen = not MenuState.infoOpen
     InfoShell.outline.Visible = MenuState.infoOpen
     if MenuState.infoOpen then
-        closeSearch()
-        closeSettings()
+        Panels.closeSearch()
+        Panels.closeSettings()
     end
 end
 
-toggleSettings = function()
+Panels.toggleSettings = function()
     MenuState.settingsOpen = not MenuState.settingsOpen
     SettingsShell.outline.Visible = MenuState.settingsOpen
     if MenuState.settingsOpen then
-        closeSearch()
-        closeInfo()
-        closeConfigMenu()
+        Panels.closeSearch()
+        Panels.closeInfo()
+        Panels.closeConfigMenu()
     end
     SettingsPanel.bindListening = false
     if SettingsPanel.refresh then
@@ -2728,20 +2688,20 @@ end
 
 do
 
-toggleConfigMenu = function()
+Panels.toggleConfigMenu = function()
     if not ConfigSystem.shell then
         return
     end
 
     local nextVisible = not ConfigSystem.shell.outline.Visible
-    closeSearch()
-    closeInfo()
-    closeSettings()
-    resetConfigDeleteState()
+    Panels.closeSearch()
+    Panels.closeInfo()
+    Panels.closeSettings()
+    ConfigOps.resetDeleteState()
 
     ConfigSystem.shell.outline.Visible = nextVisible
     if nextVisible then
-        refreshConfigControls(nil, false)
+        ConfigOps.refreshControls(nil, false)
         if ConfigSystem.inputBox then
             ConfigSystem.inputBox:CaptureFocus()
         end
@@ -2754,7 +2714,7 @@ end
 
 do
 
-rebuildSearchResults = function(query)
+Panels.rebuildSearchResults = function(query)
     local filter = string.lower(query or "")
 
     for _, child in ipairs(SearchShell.results:GetChildren()) do
@@ -2821,8 +2781,8 @@ rebuildSearchResults = function(query)
             end)
 
             result.MouseButton1Click:Connect(function()
-                selectTab(entry.tab)
-                closeSearch()
+                Layout.selectTab(entry.tab)
+                Panels.closeSearch()
             end)
         end
     end
@@ -2832,7 +2792,7 @@ rebuildSearchResults = function(query)
 end
 
 SearchShell.input:GetPropertyChangedSignal("Text"):Connect(function()
-    rebuildSearchResults(SearchShell.input.Text)
+    Panels.rebuildSearchResults(SearchShell.input.Text)
 end)
 
 if ConfigSystem.inputBox then
@@ -2843,7 +2803,7 @@ if ConfigSystem.inputBox then
 
         local normalized = normalizeConfigName(ConfigSystem.inputBox.Text)
         if normalized ~= ConfigSystem.inputBox.Text then
-            setConfigInputText(normalized)
+            ConfigOps.setInputText(normalized)
             return
         end
 
@@ -2851,15 +2811,15 @@ if ConfigSystem.inputBox then
             ConfigSystem.selectedName = nil
         end
 
-        resetConfigDeleteState()
-        refreshConfigControls(nil, false)
+        ConfigOps.resetDeleteState()
+        ConfigOps.refreshControls(nil, false)
     end)
 end
 
-ConfigButton.MouseButton1Click:Connect(toggleConfigMenu)
-SearchButton.MouseButton1Click:Connect(toggleSearch)
-InfoButton.MouseButton1Click:Connect(toggleInfo)
-WindowShell.settingsButton.MouseButton1Click:Connect(toggleSettings)
+ConfigButton.MouseButton1Click:Connect(Panels.toggleConfigMenu)
+SearchButton.MouseButton1Click:Connect(Panels.toggleSearch)
+InfoButton.MouseButton1Click:Connect(Panels.toggleInfo)
+WindowShell.settingsButton.MouseButton1Click:Connect(Panels.toggleSettings)
 
 ConfigButton.MouseEnter:Connect(function()
     ConfigButton.ImageColor3 = Theme.text
@@ -2976,7 +2936,7 @@ local function getSectionFillHeight(section)
     return math.max(0, availableHeight)
 end
 
-updateShellSize = function(section, fillToBottom)
+Layout.updateShellSize = function(section, fillToBottom)
     if not section or not section.layout then
         return
     end
@@ -3000,7 +2960,7 @@ updateShellSize = function(section, fillToBottom)
     section.outline.Size = UDim2.new(1, 0, 0, visibleHeight + 29)
 end
 
-relayoutSectionColumn = function(tabId, columnIndex)
+Layout.relayoutSectionColumn = function(tabId, columnIndex)
     local sortedSections = {}
 
     for _, section in pairs(Sections) do
@@ -3014,14 +2974,14 @@ relayoutSectionColumn = function(tabId, columnIndex)
     end)
 
     for index, section in ipairs(sortedSections) do
-        updateShellSize(section, index == #sortedSections)
+        Layout.updateShellSize(section, index == #sortedSections)
     end
 end
 
-relayoutAllSectionColumns = function()
+Layout.relayoutAllSectionColumns = function()
     for _, definition in ipairs(TabDefinitions) do
         for columnIndex = 1, 3 do
-            relayoutSectionColumn(definition.id, columnIndex)
+            Layout.relayoutSectionColumn(definition.id, columnIndex)
         end
     end
 end
@@ -3055,11 +3015,11 @@ local function clampGuiPositionToViewport(guiObject, anchoredPosition)
     )
 end
 
-updateWindowRestPosition = function(position)
+Layout.updateWindowRestPosition = function(position)
     WindowRestPosition = position or Window.Position
 end
 
-getMenuHiddenPosition = function()
+Layout.getMenuHiddenPosition = function()
     local rest = WindowRestPosition or Window.Position
     return UDim2.new(
         rest.X.Scale,
@@ -3082,7 +3042,7 @@ local function makeDraggable(handle, target)
         end
 
         if target == Window then
-            stopMenuTween()
+            Motion.stopMenuTween()
         end
 
         dragging = true
@@ -3125,8 +3085,8 @@ local function makeDraggable(handle, target)
         )
 
         if target == Window then
-            updateWindowRestPosition(target.Position)
-            relayoutAllSectionColumns()
+            Layout.updateWindowRestPosition(target.Position)
+            Layout.relayoutAllSectionColumns()
         end
     end))
 end
@@ -3145,7 +3105,7 @@ local function makeResizable(handle, target, minimumSize)
         end
 
         if target == Window then
-            stopMenuTween()
+            Motion.stopMenuTween()
         end
 
         resizing = true
@@ -3195,8 +3155,8 @@ local function makeResizable(handle, target, minimumSize)
         )
 
         if target == Window then
-            updateWindowRestPosition(target.Position)
-            relayoutAllSectionColumns()
+            Layout.updateWindowRestPosition(target.Position)
+            Layout.relayoutAllSectionColumns()
         end
     end))
 end
@@ -3210,7 +3170,7 @@ end
 
 do
 
-getSection = function(tabId, columnIndex, name)
+Layout.getSection = function(tabId, columnIndex, name)
     local key = tabId .. "_" .. columnIndex .. "_" .. name
     if Sections[key] then
         return Sections[key]
@@ -3286,7 +3246,7 @@ getSection = function(tabId, columnIndex, name)
     })
 
     layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        relayoutSectionColumn(tabId, columnIndex)
+        Layout.relayoutSectionColumn(tabId, columnIndex)
     end)
 
     local section = {
@@ -3304,14 +3264,14 @@ getSection = function(tabId, columnIndex, name)
     }
 
     Sections[key] = section
-    relayoutSectionColumn(tabId, columnIndex)
+    Layout.relayoutSectionColumn(tabId, columnIndex)
     task.defer(function()
-        relayoutSectionColumn(tabId, columnIndex)
+        Layout.relayoutSectionColumn(tabId, columnIndex)
     end)
     return section
 end
 
-reflowTabButtons = function()
+Layout.reflowTabButtons = function()
     local count = math.max(#TabDefinitions, 1)
     for _, definition in ipairs(TabDefinitions) do
         local tab = Tabs[definition.id]
@@ -3321,7 +3281,7 @@ reflowTabButtons = function()
     end
 end
 
-createTab = function(id, name, iconAsset, order)
+Layout.createTab = function(id, name, iconAsset, order)
     local columnGap = 6
     local columnCount = 3
     local columnWidthOffset = -math.floor((columnGap * (columnCount - 1)) / columnCount + 0.5)
@@ -3403,7 +3363,7 @@ createTab = function(id, name, iconAsset, order)
         })
 
         column:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-            relayoutSectionColumn(id, columnIndex)
+            Layout.relayoutSectionColumn(id, columnIndex)
         end)
 
         columns[columnIndex] = column
@@ -3421,16 +3381,16 @@ createTab = function(id, name, iconAsset, order)
     }
 
     hitbox.MouseButton1Click:Connect(function()
-        selectTab(id)
+        Layout.selectTab(id)
     end)
-    reflowTabButtons()
+    Layout.reflowTabButtons()
 end
 
-colorToHex = function(color)
+Render.colorToHex = function(color)
     return string.format("#%02X%02X%02X", math.floor(color.R * 255), math.floor(color.G * 255), math.floor(color.B * 255))
 end
 
-getInlineBindText = function(entry)
+Render.getInlineBindText = function(entry)
     return formatToggleBindText(entry)
 end
 
@@ -3501,7 +3461,7 @@ local function createSubsectionHeader(entry)
     end
     CreatedSubsectionHeaders[key] = true
 
-    local section = getSection(entry.tab, entry.column, entry.section)
+    local section = Layout.getSection(entry.tab, entry.column, entry.section)
 
     local row = create("Frame", {
         Parent = section.holder,
@@ -3536,9 +3496,9 @@ local function createSubsectionHeader(entry)
     label.TextTransparency = 0.1
 end
 
-createToggleRow = function(entry)
+Render.createToggleRow = function(entry)
     createSubsectionHeader(entry)
-    local section = getSection(entry.tab, entry.column, entry.section)
+    local section = Layout.getSection(entry.tab, entry.column, entry.section)
     local hasPicker = entry.picker == true
 
     local row = create("TextButton", {
@@ -3700,9 +3660,9 @@ createToggleRow = function(entry)
     createKeybindEntry(entry)
 end
 
-createButtonRow = function(entry)
+Render.createButtonRow = function(entry)
     createSubsectionHeader(entry)
-    local section = getSection(entry.tab, entry.column, entry.section)
+    local section = Layout.getSection(entry.tab, entry.column, entry.section)
 
     local row = create("TextButton", {
         Parent = section.holder,
@@ -3750,9 +3710,9 @@ createButtonRow = function(entry)
     end)
 end
 
-createSliderRow = function(entry)
+Render.createSliderRow = function(entry)
     createSubsectionHeader(entry)
-    local section = getSection(entry.tab, entry.column, entry.section)
+    local section = Layout.getSection(entry.tab, entry.column, entry.section)
 
     local row = create("Frame", {
         Parent = section.holder,
@@ -3911,9 +3871,9 @@ createSliderRow = function(entry)
     }
 end
 
-createTextboxRow = function(entry)
+Render.createTextboxRow = function(entry)
     createSubsectionHeader(entry)
-    local section = getSection(entry.tab, entry.column, entry.section)
+    local section = Layout.getSection(entry.tab, entry.column, entry.section)
 
     local row = create("Frame", {
         Parent = section.holder,
@@ -3985,9 +3945,9 @@ createTextboxRow = function(entry)
     }
 end
 
-createDropdownRow = function(entry)
+Render.createDropdownRow = function(entry)
     createSubsectionHeader(entry)
-    local section = getSection(entry.tab, entry.column, entry.section)
+    local section = Layout.getSection(entry.tab, entry.column, entry.section)
 
     local row = create("Frame", {
         Parent = section.holder,
@@ -4056,7 +4016,7 @@ createDropdownRow = function(entry)
 
         entry.open = not entry.open
         if not entry.open then
-            closeDropdown()
+            Panels.closeDropdown()
         end
         refreshRows()
     end)
@@ -4069,9 +4029,9 @@ createDropdownRow = function(entry)
     }
 end
 
-createKeybindRow = function(entry)
+Render.createKeybindRow = function(entry)
     createSubsectionHeader(entry)
-    local section = getSection(entry.tab, entry.column, entry.section)
+    local section = Layout.getSection(entry.tab, entry.column, entry.section)
 
     local row = create("TextButton", {
         Parent = section.holder,
@@ -4141,9 +4101,9 @@ createKeybindRow = function(entry)
     end)
 end
 
-createColorRow = function(entry)
+Render.createColorRow = function(entry)
     createSubsectionHeader(entry)
-    local section = getSection(entry.tab, entry.column, entry.section)
+    local section = Layout.getSection(entry.tab, entry.column, entry.section)
 
     local row = create("Frame", {
         Parent = section.holder,
@@ -4201,23 +4161,23 @@ end
 
 for _, entry in ipairs(Entries) do
     if entry.kind == "toggle" then
-        createToggleRow(entry)
+        Render.createToggleRow(entry)
     elseif entry.kind == "button" then
-        createButtonRow(entry)
+        Render.createButtonRow(entry)
     elseif entry.kind == "slider" then
-        createSliderRow(entry)
+        Render.createSliderRow(entry)
     elseif entry.kind == "textbox" then
-        createTextboxRow(entry)
+        Render.createTextboxRow(entry)
     elseif entry.kind == "dropdown" then
-        createDropdownRow(entry)
+        Render.createDropdownRow(entry)
     elseif entry.kind == "keybind" then
-        createKeybindRow(entry)
+        Render.createKeybindRow(entry)
     elseif entry.kind == "color" then
-        createColorRow(entry)
+        Render.createColorRow(entry)
     end
 end
 
-selectTab = function(id)
+Layout.selectTab = function(id)
     CurrentTab = id
 
     for tabId, tab in pairs(Tabs) do
@@ -4232,7 +4192,7 @@ selectTab = function(id)
 
     task.defer(function()
         for columnIndex = 1, 3 do
-            relayoutSectionColumn(id, columnIndex)
+            Layout.relayoutSectionColumn(id, columnIndex)
         end
     end)
 end
@@ -4261,7 +4221,7 @@ local function updateBindPopup()
     end
 end
 
-openBindPopup = function(entry)
+Motion.openBindPopup = function(entry)
     if not entry or not entry.ui or not entry.ui.row then
         BindPopupShell.outline.Visible = false
         BindOverlay.Visible = false
@@ -4284,7 +4244,7 @@ openBindPopup = function(entry)
     updateBindPopup()
 end
 
-closeBindPopup = function()
+Motion.closeBindPopup = function()
     BindPopupShell.outline.Visible = false
     BindOverlay.Visible = false
     MenuState.bindPopupCurrent = nil
@@ -4292,7 +4252,7 @@ closeBindPopup = function()
     MenuState.bindPopupEntry = nil
 end
 
-closePicker = function()
+Motion.closePicker = function()
     PickerShell.outline.Visible = false
     PickerOverlay.Visible = false
     PickerState.target = nil
@@ -4326,7 +4286,7 @@ local function clearMenuTweenState()
     table.clear(MenuMotion.connections)
 end
 
-stopMenuTween = function()
+Motion.stopMenuTween = function()
     for _, tweenObject in ipairs(MenuMotion.tweens) do
         tweenObject:Cancel()
     end
@@ -4334,13 +4294,13 @@ stopMenuTween = function()
     clearMenuTweenState()
 end
 
-animateMenuVisibility = function(visible)
+Motion.animateMenuVisibility = function(visible)
     local restPosition = WindowRestPosition or Window.Position
-    local hiddenPosition = getMenuHiddenPosition()
+    local hiddenPosition = Layout.getMenuHiddenPosition()
     local wasVisible = Window.Visible
 
     if visible then
-        stopMenuTween()
+        Motion.stopMenuTween()
         Window.Visible = true
         if not wasVisible then
             Window.Position = hiddenPosition
@@ -4366,7 +4326,7 @@ animateMenuVisibility = function(visible)
             return
         end
 
-        stopMenuTween()
+        Motion.stopMenuTween()
 
         local positionTween = trackMenuTween(tween(Window, 0.18, {
             Position = hiddenPosition,
@@ -4384,11 +4344,11 @@ animateMenuVisibility = function(visible)
     end
 end
 
-BindOverlay.MouseButton1Click:Connect(closeBindPopup)
+BindOverlay.MouseButton1Click:Connect(Motion.closeBindPopup)
 BindOverlay.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton2
         or input.UserInputType == Enum.UserInputType.Touch then
-        closeBindPopup()
+        Motion.closeBindPopup()
     end
 end)
 
@@ -4414,7 +4374,7 @@ for modeId, data in pairs(ModeButtons) do
     end)
 end
 
-refreshKeybindList = function()
+Motion.refreshKeybindList = function()
     local visible = MenuState.introDone and Runtime.showKeybindList
     KeybindShell.outline.Visible = visible
     local visibleEntries = {}
@@ -4518,8 +4478,8 @@ refreshRows = function()
         SettingsPanel.refresh()
     end
 
-    refreshDropdownOverlay()
-    refreshKeybindList()
+    Panels.refreshDropdownOverlay()
+    Motion.refreshKeybindList()
 end
 
 updateWatermark = function()
@@ -4554,7 +4514,7 @@ do
 
 local function openPickerFor(entry)
     if not entry or not entry.ui or not entry.ui.colorButton then
-        closePicker()
+        Motion.closePicker()
         return
     end
 
@@ -4586,7 +4546,7 @@ local function updatePickerVisual()
     SatValCursor.Position = UDim2.new(PickerState.s, 0, 1 - PickerState.v, 0)
     HueCursor.Position = UDim2.new(0.5, 0, PickerState.h, 0)
     PickerPreview.BackgroundColor3 = color
-    PickerValue.Text = colorToHex(color)
+    PickerValue.Text = Render.colorToHex(color)
 
     local pickerCallback = PickerState.target.kind == "color" and PickerState.target.callback or PickerState.target.colorChanged
     if type(pickerCallback) == "function" then
@@ -4707,7 +4667,7 @@ trackRuntimeConnection(Services.UserInputService.InputBegan:Connect(function(inp
     if MenuState.bindPopupCurrent and MenuState.bindPopupListening then
         if input.KeyCode == Enum.KeyCode.Escape then
             MenuState.bindPopupCurrent.bind = nil
-            closeBindPopup()
+            Motion.closeBindPopup()
         elseif input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode ~= Enum.KeyCode.Unknown then
             MenuState.bindPopupCurrent.bind = input.KeyCode
             MenuState.bindPopupListening = false
@@ -4717,7 +4677,7 @@ trackRuntimeConnection(Services.UserInputService.InputBegan:Connect(function(inp
         end
 
         refreshRows()
-        refreshKeybindList()
+        Motion.refreshKeybindList()
         return
     end
 
@@ -4729,7 +4689,7 @@ trackRuntimeConnection(Services.UserInputService.InputBegan:Connect(function(inp
         local inputPosition = Vector2.new(input.Position.X, input.Position.Y)
 
         if not isInsideGui(BindPopupShell.outline, inputPosition) then
-            closeBindPopup()
+            Motion.closeBindPopup()
         end
     end
 
@@ -4741,7 +4701,7 @@ trackRuntimeConnection(Services.UserInputService.InputBegan:Connect(function(inp
         local inputPosition = Vector2.new(input.Position.X, input.Position.Y)
 
         if not isInsideGui(PickerShell.outline, inputPosition) then
-            closePicker()
+            Motion.closePicker()
         end
     end
 
@@ -4755,7 +4715,7 @@ trackRuntimeConnection(Services.UserInputService.InputBegan:Connect(function(inp
 
         if not isInsideGui(DropdownPanel.shell.outline, inputPosition)
             and not isInsideGui(dropdownButton, inputPosition) then
-            closeDropdown()
+            Panels.closeDropdown()
         end
     end
 
@@ -4767,26 +4727,26 @@ trackRuntimeConnection(Services.UserInputService.InputBegan:Connect(function(inp
         if MenuState.searchOpen
             and not isInsideGui(SearchShell.outline, inputPosition)
             and not isInsideGui(SearchButton, inputPosition) then
-            closeSearch()
+            Panels.closeSearch()
         end
 
         if MenuState.infoOpen
             and not isInsideGui(InfoShell.outline, inputPosition)
             and not isInsideGui(InfoButton, inputPosition) then
-            closeInfo()
+            Panels.closeInfo()
         end
 
         if MenuState.settingsOpen
             and not isInsideGui(SettingsShell.outline, inputPosition)
             and not isInsideGui(WindowShell.settingsButton, inputPosition) then
-            closeSettings()
+            Panels.closeSettings()
         end
 
         if ConfigSystem.shell
             and ConfigSystem.shell.outline.Visible
             and not isInsideGui(ConfigSystem.shell.outline, inputPosition)
             and not isInsideGui(ConfigButton, inputPosition) then
-            closeConfigMenu()
+            Panels.closeConfigMenu()
         end
     end
 
@@ -4798,41 +4758,41 @@ trackRuntimeConnection(Services.UserInputService.InputBegan:Connect(function(inp
         MenuState.visible = not MenuState.visible
 
         if MenuState.visible then
-            animateMenuVisibility(true)
+            Motion.animateMenuVisibility(true)
         else
-            closePicker()
-            closeDropdown()
-            closeBindPopup()
-            closeMiniPanels()
+            Motion.closePicker()
+            Panels.closeDropdown()
+            Motion.closeBindPopup()
+            Panels.closeMiniPanels()
             table.clear(MenuMotion.holdEntries)
-            animateMenuVisibility(false)
+            Motion.animateMenuVisibility(false)
         end
 
         return
     end
 
     if input.KeyCode == Enum.KeyCode.Escape and PickerShell.outline.Visible then
-        closePicker()
+        Motion.closePicker()
         return
     end
 
     if input.KeyCode == Enum.KeyCode.Escape and DropdownPanel.entry then
-        closeDropdown()
+        Panels.closeDropdown()
         return
     end
 
     if input.KeyCode == Enum.KeyCode.Escape and BindPopupShell.outline.Visible then
-        closeBindPopup()
+        Motion.closeBindPopup()
         return
     end
 
     if input.KeyCode == Enum.KeyCode.Escape and (MenuState.searchOpen or MenuState.infoOpen or MenuState.settingsOpen) then
-        closeMiniPanels()
+        Panels.closeMiniPanels()
         return
     end
 
     if input.KeyCode == Enum.KeyCode.Escape and ConfigSystem.shell and ConfigSystem.shell.outline.Visible then
-        closeConfigMenu()
+        Panels.closeConfigMenu()
         return
     end
 
@@ -4871,31 +4831,31 @@ trackRuntimeConnection(Services.RunService.RenderStepped:Connect(function(deltaT
             updatePickerVisual()
         end
     elseif PickerState.target then
-        closePicker()
+        Motion.closePicker()
     end
 
     if MenuState.bindPopupEntry ~= MenuState.bindPopupCurrent then
         if MenuState.bindPopupEntry then
-            openBindPopup(MenuState.bindPopupEntry)
+            Motion.openBindPopup(MenuState.bindPopupEntry)
         else
-            closeBindPopup()
+            Motion.closeBindPopup()
         end
     end
 
-    refreshDropdownOverlay()
+    Panels.refreshDropdownOverlay()
     updateWatermark()
 end))
 
-revealWindowImmediate = function()
+Motion.revealWindowImmediate = function()
     MenuState.introDone = true
-    updateWindowRestPosition(WindowRestPosition or Window.Position)
+    Layout.updateWindowRestPosition(WindowRestPosition or Window.Position)
     Window.Visible = true
     Window.BackgroundTransparency = 0
     Window.Position = WindowRestPosition
     WindowScale.Scale = 1
 end
 
-playIntro = function()
+Motion.playIntro = function()
     tween(Blur, 0.9, { Size = 52 }, Enum.EasingStyle.Quart)
     local fadeIn = tween(Intro, 0.45, { BackgroundTransparency = 0.28 }, Enum.EasingStyle.Quad)
     fadeIn.Completed:Wait()
@@ -4954,10 +4914,10 @@ playIntro = function()
     Intro = nil
     Blur = nil
 
-    revealWindowImmediate()
-    Window.Position = getMenuHiddenPosition()
+    Motion.revealWindowImmediate()
+    Window.Position = Layout.getMenuHiddenPosition()
     WindowScale.Scale = 0.965
-    animateMenuVisibility(true)
+    Motion.animateMenuVisibility(true)
 end
 
 end
@@ -4967,19 +4927,19 @@ do
 
 local function renderEntry(entry)
     if entry.kind == "toggle" then
-        createToggleRow(entry)
+        Render.createToggleRow(entry)
     elseif entry.kind == "button" then
-        createButtonRow(entry)
+        Render.createButtonRow(entry)
     elseif entry.kind == "slider" then
-        createSliderRow(entry)
+        Render.createSliderRow(entry)
     elseif entry.kind == "textbox" then
-        createTextboxRow(entry)
+        Render.createTextboxRow(entry)
     elseif entry.kind == "dropdown" then
-        createDropdownRow(entry)
+        Render.createDropdownRow(entry)
     elseif entry.kind == "keybind" then
-        createKeybindRow(entry)
+        Render.createKeybindRow(entry)
     elseif entry.kind == "color" then
-        createColorRow(entry)
+        Render.createColorRow(entry)
     end
 end
 
@@ -4991,11 +4951,11 @@ local function clearSearchResults()
     end
 end
 
-clearWindowState = function()
-    closeDropdown()
-    closePicker()
-    closeBindPopup()
-    closeMiniPanels()
+WindowLifecycle.clearState = function()
+    Panels.closeDropdown()
+    Motion.closePicker()
+    Motion.closeBindPopup()
+    Panels.closeMiniPanels()
 
     MenuState.listeningKeybindEntry = nil
     SettingsPanel.bindListening = false
@@ -5040,7 +5000,7 @@ clearWindowState = function()
     ConfigSystem.syncing = false
     ConfigSystem.deleteConfirmName = nil
     ConfigSystem.buildToken = ConfigSystem.buildToken + 1
-    clearConfigRows()
+    ConfigOps.clearRows()
 
     if ConfigSystem.inputBox then
         ConfigSystem.inputBox.Text = ""
@@ -5054,7 +5014,7 @@ clearWindowState = function()
         ConfigSystem.shell.outline.Visible = false
     end
 
-    resetConfigDeleteState()
+    ConfigOps.resetDeleteState()
 
     if SettingsPanel.refresh then
         SettingsPanel.refresh()
@@ -5112,7 +5072,7 @@ local function registerEntry(entry)
     Entries[#Entries + 1] = entry
 
     renderEntry(entry)
-    rebuildSearchResults(SearchShell.input.Text)
+    Panels.rebuildSearchResults(SearchShell.input.Text)
     refreshRows()
     updateWatermark()
 
@@ -5283,14 +5243,14 @@ function MenuMethods:AddSection(config)
         tags = config.Tags,
     }, SectionMethods)
 
-    local uiSection = getSection(section.tabId, section.column, section.sectionName)
+    local uiSection = Layout.getSection(section.tabId, section.column, section.sectionName)
     if config.Height then
         uiSection.maxContentHeight = config.Height
         uiSection.fixedHeight = true
-        updateShellSize(uiSection, false)
+        Layout.updateShellSize(uiSection, false)
     else
         uiSection.fixedHeight = false
-        relayoutSectionColumn(section.tabId, section.column)
+        Layout.relayoutSectionColumn(section.tabId, section.column)
     end
 
     return section
@@ -5309,16 +5269,16 @@ function WindowMethods:AddMenu(config)
         order = #TabDefinitions + 1,
     }
 
-    createTab(id, name, resolveIcon(config.Icon), #TabDefinitions)
+    Layout.createTab(id, name, resolveIcon(config.Icon), #TabDefinitions)
 
     if not DefaultTabId then
         DefaultTabId = id
     end
 
     if not CurrentTab then
-        selectTab(id)
+        Layout.selectTab(id)
     else
-        reflowTabButtons()
+        Layout.reflowTabButtons()
     end
 
     return setmetatable({
@@ -5334,7 +5294,7 @@ do
 
 function WindowMethods:ExportConfig(useDefaults)
     local ok, encoded = pcall(function()
-        return Services.HttpService:JSONEncode(exportConfigData(useDefaults == true))
+        return Services.HttpService:JSONEncode(ConfigOps.exportData(useDefaults == true))
     end)
 
     if not ok then
@@ -5357,15 +5317,15 @@ function WindowMethods:ImportConfig(configText)
         return false, "failed to decode config"
     end
 
-    return applyConfigData(payload)
+    return ConfigOps.applyData(payload)
 end
 
 function WindowMethods:GetConfigs()
-    return getConfigList()
+    return ConfigOps.getList()
 end
 
 function WindowMethods:RefreshConfigs()
-    return refreshConfigControls()
+    return ConfigOps.refreshControls()
 end
 
 function WindowMethods:SaveConfig(name)
@@ -5373,7 +5333,7 @@ function WindowMethods:SaveConfig(name)
         return false, "filesystem api is unavailable"
     end
 
-    local configName = normalizeConfigName(name or getRequestedConfigName(false))
+    local configName = normalizeConfigName(name or ConfigOps.getRequestedName(false))
     if configName == "" then
         return false, "config name is empty"
     end
@@ -5392,7 +5352,7 @@ function WindowMethods:SaveConfig(name)
     end
 
     ConfigSystem.selectedName = configName
-    refreshConfigControls(configName, true)
+    ConfigOps.refreshControls(configName, true)
     return true
 end
 
@@ -5401,7 +5361,7 @@ function WindowMethods:LoadConfig(name)
         return false, "filesystem api is unavailable"
     end
 
-    local configName = normalizeConfigName(name or getRequestedConfigName(true))
+    local configName = normalizeConfigName(name or ConfigOps.getRequestedName(true))
     if configName == "" then
         return false, "config name is empty"
     end
@@ -5425,7 +5385,7 @@ function WindowMethods:LoadConfig(name)
     end
 
     ConfigSystem.selectedName = configName
-    refreshConfigControls(configName, true)
+    ConfigOps.refreshControls(configName, true)
     return true
 end
 
@@ -5434,7 +5394,7 @@ function WindowMethods:DeleteConfig(name)
         return false, "filesystem api is unavailable"
     end
 
-    local configName = normalizeConfigName(name or getRequestedConfigName(true))
+    local configName = normalizeConfigName(name or ConfigOps.getRequestedName(true))
     if configName == "" then
         return false, "config name is empty"
     end
@@ -5456,12 +5416,12 @@ function WindowMethods:DeleteConfig(name)
         ConfigSystem.selectedName = nil
     end
 
-    refreshConfigControls(nil, false)
+    ConfigOps.refreshControls(nil, false)
     return true
 end
 
 function WindowMethods:LoadDefaults()
-    return applyConfigData(exportConfigData(true))
+    return ConfigOps.applyData(ConfigOps.exportData(true))
 end
 
 local function warnConfigFailure(actionName, message)
@@ -5469,7 +5429,7 @@ local function warnConfigFailure(actionName, message)
 end
 
 do
-    function buildConfigMenu(windowObject)
+    function ConfigOps.buildMenu(windowObject)
         if not windowObject or ConfigSystem.menuBuilt or not ConfigSystem.enabled then
             return
         end
@@ -5490,13 +5450,13 @@ do
                     return
                 end
 
-                resetConfigDeleteState()
+                ConfigOps.resetDeleteState()
             end
 
             if ConfigSystem.createButton then
                 ConfigSystem.createButton.MouseButton1Click:Connect(function()
                     doConfigAction("Create", function(activeWindow)
-                        return activeWindow:SaveConfig(getRequestedConfigName(false))
+                        return activeWindow:SaveConfig(ConfigOps.getRequestedName(false))
                     end)
                 end)
             end
@@ -5504,7 +5464,7 @@ do
             if ConfigSystem.saveButton then
                 ConfigSystem.saveButton.MouseButton1Click:Connect(function()
                     doConfigAction("Save", function(activeWindow)
-                        return activeWindow:SaveConfig(getRequestedConfigName(true))
+                        return activeWindow:SaveConfig(ConfigOps.getRequestedName(true))
                     end)
                 end)
             end
@@ -5512,14 +5472,14 @@ do
             if ConfigSystem.loadButton then
                 ConfigSystem.loadButton.MouseButton1Click:Connect(function()
                     doConfigAction("Load", function(activeWindow)
-                        return activeWindow:LoadConfig(getRequestedConfigName(true))
+                        return activeWindow:LoadConfig(ConfigOps.getRequestedName(true))
                     end)
                 end)
             end
 
             if ConfigSystem.deleteButton then
                 ConfigSystem.deleteButton.MouseButton1Click:Connect(function()
-                    local configName = getRequestedConfigName(true)
+                    local configName = ConfigOps.getRequestedName(true)
                     if not configName then
                         warnConfigFailure("Delete", "config name is empty")
                         return
@@ -5541,8 +5501,8 @@ do
 
             if ConfigSystem.refreshButton then
                 ConfigSystem.refreshButton.MouseButton1Click:Connect(function()
-                    resetConfigDeleteState()
-                    refreshConfigControls(nil, false)
+                    ConfigOps.resetDeleteState()
+                    ConfigOps.refreshControls(nil, false)
                 end)
             end
 
@@ -5555,8 +5515,8 @@ do
             ConfigSystem.titleLabel.Text = "Configs"
         end
 
-        resetConfigDeleteState()
-        refreshConfigControls(nil, false)
+        ConfigOps.resetDeleteState()
+        ConfigOps.refreshControls(nil, false)
     end
 end
 
@@ -5613,7 +5573,7 @@ end
 local function createWindow(config)
     config = config or {}
 
-    clearWindowState()
+    WindowLifecycle.clearState()
 
     Runtime.title = config.Name or "NeverPaste"
     Runtime.info = config.Info or "Right click toggles to assign binds.\nUse search to jump between controls quickly."
@@ -5647,23 +5607,23 @@ local function createWindow(config)
 
     MenuState.introDone = false
     MenuState.visible = true
-    stopMenuTween()
-    updateWindowRestPosition(DefaultWindowPosition)
+    Motion.stopMenuTween()
+    Layout.updateWindowRestPosition(DefaultWindowPosition)
     Window.Visible = false
     Window.BackgroundTransparency = 1
     Window.Position = DefaultWindowPosition
     WindowScale.Scale = 1
 
     refreshTheme()
-    rebuildSearchResults("")
+    Panels.rebuildSearchResults("")
     refreshRows()
     updateWatermark()
 
     if config.Intro == false or not (Intro and Intro.Parent and Blur and Blur.Parent) then
-        revealWindowImmediate()
+        Motion.revealWindowImmediate()
     else
         task.spawn(function()
-            local ok, err = pcall(playIntro)
+            local ok, err = pcall(Motion.playIntro)
             if ok then
                 return
             end
@@ -5673,7 +5633,7 @@ local function createWindow(config)
             destroyInstance(Blur)
             Intro = nil
             Blur = nil
-            revealWindowImmediate()
+            Motion.revealWindowImmediate()
         end)
     end
 
@@ -5685,15 +5645,15 @@ local function createWindow(config)
             return
         end
 
-        buildConfigMenu(windowObject)
+        ConfigOps.buildMenu(windowObject)
     end)
 
     return windowObject
 end
 
 local function destroyLibrary()
-    stopMenuTween()
-    clearWindowState()
+    Motion.stopMenuTween()
+    WindowLifecycle.clearState()
     cleanupRuntimeHandle(RuntimeHandle)
 
     MenuState.visible = false
@@ -5829,7 +5789,7 @@ Atlanta.flags = EntryMap
 Atlanta.entries = Entries
 
 refreshTheme()
-stopMenuTween()
+Motion.stopMenuTween()
 WindowRestPosition = DefaultWindowPosition
 Window.Visible = false
 Window.Position = DefaultWindowPosition
