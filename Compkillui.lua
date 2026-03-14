@@ -37,6 +37,21 @@ local FileApi = {
 }
 
 -- Core helpers
+local function getGlobalScope()
+    if type(getgenv) == "function" then
+        local ok, env = pcall(getgenv)
+        if ok and type(env) == "table" then
+            return env
+        end
+    end
+
+    if type(_G) == "table" then
+        return _G
+    end
+
+    return nil
+end
+
 local function cloneInstance(instance)
     if typeof(instance) == "Instance" then
         return cloneref(instance)
@@ -70,7 +85,74 @@ local function getViewportSize()
     return Vector2.new(1920, 1080)
 end
 
+local function disconnectConnection(connection)
+    if typeof(connection) == "RBXScriptConnection" then
+        pcall(function()
+            connection:Disconnect()
+        end)
+    end
+end
+
+local function destroyInstance(instance)
+    if typeof(instance) == "Instance" and instance.Parent then
+        pcall(function()
+            instance:Destroy()
+        end)
+    end
+end
+
+local function generateRuntimeName(prefix)
+    local guid
+
+    pcall(function()
+        guid = Services.HttpService:GenerateGUID(false)
+    end)
+
+    if type(guid) == "string" and guid ~= "" then
+        return string.format("%s_%s", prefix, guid:gsub("%-", ""))
+    end
+
+    return string.format("%s_%d", prefix, math.random(100000, 999999))
+end
+
 local LocalPlayer = cloneInstance(Services.Players.LocalPlayer)
+local GlobalScope = getGlobalScope()
+local RuntimeSingletonKey = "__NEVERPASTE_RUNTIME__"
+local RuntimeHandle = {
+    connections = {},
+    viewportConnection = nil,
+    gui = nil,
+    blur = nil,
+}
+
+local function cleanupRuntimeHandle(handle)
+    if type(handle) ~= "table" then
+        return
+    end
+
+    if type(handle.connections) == "table" then
+        for _, connection in ipairs(handle.connections) do
+            disconnectConnection(connection)
+        end
+        table.clear(handle.connections)
+    end
+
+    disconnectConnection(handle.viewportConnection)
+    handle.viewportConnection = nil
+
+    destroyInstance(handle.gui)
+    destroyInstance(handle.blur)
+    handle.gui = nil
+    handle.blur = nil
+end
+
+if GlobalScope and GlobalScope[RuntimeSingletonKey] then
+    cleanupRuntimeHandle(GlobalScope[RuntimeSingletonKey])
+end
+
+if GlobalScope then
+    GlobalScope[RuntimeSingletonKey] = RuntimeHandle
+end
 
 --if string.find(executorName, "solara") or string.find(executorName, "xeno") then
 --    LocalPlayer:Kick("XENO AND SOLARA IS UNSUPPORTED BROTHER!!!")
@@ -129,6 +211,14 @@ local ThemeRegistry = {
     contrast = {},
     sectionContrast = {},
 }
+
+local function trackRuntimeConnection(connection)
+    if typeof(connection) == "RBXScriptConnection" then
+        RuntimeHandle.connections[#RuntimeHandle.connections + 1] = connection
+    end
+
+    return connection
+end
 
 -- UI primitives
 local function create(className, properties)
@@ -462,12 +552,13 @@ end)
 
 local ScreenGui = create("ScreenGui", {
     Parent = RootGui,
-    Name = "NeverPasteUI",
+    Name = generateRuntimeName("NeverPasteUI"),
     ResetOnSpawn = false,
     ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
     IgnoreGuiInset = true,
     DisplayOrder = 999999,
 })
+RuntimeHandle.gui = ScreenGui
 
 local CachedViewportSize = Vector2.new(1920, 1080)
 local CameraViewportConnection
@@ -481,18 +572,20 @@ end
 
 local function attachViewportListener()
     if CameraViewportConnection then
-        CameraViewportConnection:Disconnect()
+        disconnectConnection(CameraViewportConnection)
         CameraViewportConnection = nil
+        RuntimeHandle.viewportConnection = nil
     end
 
     local camera = getCurrentCamera()
     if camera then
         CachedViewportSize = camera.ViewportSize
         CameraViewportConnection = camera:GetPropertyChangedSignal("ViewportSize"):Connect(refreshViewportSize)
+        RuntimeHandle.viewportConnection = CameraViewportConnection
     end
 end
 
-Services.Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(attachViewportListener)
+trackRuntimeConnection(Services.Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(attachViewportListener))
 attachViewportListener()
 
 local Blur
@@ -512,9 +605,10 @@ do
 
     Blur = create("BlurEffect", {
         Parent = Services.Lighting,
-        Name = "NeverPasteBlur",
+        Name = generateRuntimeName("NeverPasteBlur"),
         Size = 0,
     })
+    RuntimeHandle.blur = Blur
 
     Intro = create("Frame", {
         Parent = ScreenGui,
@@ -771,6 +865,8 @@ local colorToHex
 local openBindPopup
 local getInlineBindText
 local buildConfigMenu
+local playIntro
+local clearWindowState
 
 -- Shell and overlay assembly
 local WindowShell = addShell(ScreenGui, UDim2.fromOffset(658, 476), UDim2.fromOffset(0, 0), true, 0, 10)
@@ -2999,7 +3095,7 @@ local function makeDraggable(handle, target)
         end
     end)
 
-    Services.UserInputService.InputChanged:Connect(function(input)
+    trackRuntimeConnection(Services.UserInputService.InputChanged:Connect(function(input)
         if not dragging or not dragStart or not dragStartPosition or input ~= dragInput then
             return
         end
@@ -3019,7 +3115,7 @@ local function makeDraggable(handle, target)
             updateWindowRestPosition(target.Position)
             relayoutAllSectionColumns()
         end
-    end)
+    end))
 end
 
 local function makeResizable(handle, target, minimumSize)
@@ -3063,7 +3159,7 @@ local function makeResizable(handle, target, minimumSize)
         end
     end)
 
-    Services.UserInputService.InputChanged:Connect(function(input)
+    trackRuntimeConnection(Services.UserInputService.InputChanged:Connect(function(input)
         if not resizing or not resizeStartMouse or not resizeStartPosition or input ~= resizeInput then
             return
         end
@@ -3089,7 +3185,7 @@ local function makeResizable(handle, target, minimumSize)
             updateWindowRestPosition(target.Position)
             relayoutAllSectionColumns()
         end
-    end)
+    end))
 end
 
 makeDraggable(WindowShell.header, Window)
@@ -3775,17 +3871,17 @@ createSliderRow = function(entry)
         setFromX(input.Position.X)
     end)
 
-    Services.UserInputService.InputChanged:Connect(function(input)
+    trackRuntimeConnection(Services.UserInputService.InputChanged:Connect(function(input)
         if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
             setFromX(input.Position.X)
         end
-    end)
+    end))
 
-    Services.UserInputService.InputEnded:Connect(function(input)
+    trackRuntimeConnection(Services.UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = false
         end
-    end)
+    end))
 
     entry.ui = {
         row = row,
@@ -4437,9 +4533,6 @@ end
 
 -- Input lifecycle and intro orchestration
 do
-local playIntro
-local clearWindowState
-
 do
 
 local function openPickerFor(entry)
@@ -4521,7 +4614,7 @@ beginPickerDrag(SatVal, "sv")
 beginPickerDrag(SatValShade, "sv")
 beginPickerDrag(HueBar, "hue")
 
-Services.UserInputService.InputChanged:Connect(function(input)
+trackRuntimeConnection(Services.UserInputService.InputChanged:Connect(function(input)
     if input.UserInputType ~= Enum.UserInputType.MouseMovement then
         return
     end
@@ -4531,9 +4624,9 @@ Services.UserInputService.InputChanged:Connect(function(input)
     elseif PickerRuntime.mode == "hue" then
         setPickerFromInput(input, "hue")
     end
-end)
+end))
 
-Services.UserInputService.InputEnded:Connect(function(input)
+trackRuntimeConnection(Services.UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         PickerRuntime.mode = nil
     end
@@ -4552,9 +4645,9 @@ Services.UserInputService.InputEnded:Connect(function(input)
         refreshRows()
         updateWatermark()
     end
-end)
+end))
 
-Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
+trackRuntimeConnection(Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
     local bindableMouseInput = getBindableMouseInput(input)
 
     if SettingsPanel.bindListening then
@@ -4742,9 +4835,9 @@ Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
 
     refreshRows()
     updateWatermark()
-end)
+end))
 
-Services.RunService.RenderStepped:Connect(function(deltaTime)
+trackRuntimeConnection(Services.RunService.RenderStepped:Connect(function(deltaTime)
     StatsState.fpsFrames = StatsState.fpsFrames + 1
     StatsState.fpsElapsed = StatsState.fpsElapsed + deltaTime
 
@@ -4774,7 +4867,7 @@ Services.RunService.RenderStepped:Connect(function(deltaTime)
 
     refreshDropdownOverlay()
     updateWatermark()
-end)
+end))
 
 playIntro = function()
     tween(Blur, 0.9, { Size = 52 }, Enum.EasingStyle.Quart)
@@ -5564,6 +5657,19 @@ local function createWindow(config)
     return windowObject
 end
 
+local function destroyLibrary()
+    stopMenuTween()
+    clearWindowState()
+    cleanupRuntimeHandle(RuntimeHandle)
+
+    MenuState.visible = false
+    MenuState.introDone = false
+
+    if GlobalScope and GlobalScope[RuntimeSingletonKey] == RuntimeHandle then
+        GlobalScope[RuntimeSingletonKey] = nil
+    end
+end
+
 function Atlanta:CreateWindow(config)
     return createWindow(config)
 end
@@ -5628,6 +5734,10 @@ function Atlanta:GetFlag(flag)
     return ControlMethods.Get({
         entry = entry,
     })
+end
+
+function Atlanta:Destroy()
+    destroyLibrary()
 end
 
 --[[
