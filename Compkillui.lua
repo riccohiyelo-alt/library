@@ -4226,6 +4226,15 @@ Render.createESPPreviewRow = function(entry)
         ZIndex = 35,
     }, false)
 
+    local dragHandle = create("TextButton", {
+        Parent = header,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 1, 0),
+        Text = "",
+        AutoButtonColor = false,
+        ZIndex = 36,
+    })
+
     local previewArea = create("Frame", {
         Parent = shell.background,
         BackgroundTransparency = 1,
@@ -4475,8 +4484,15 @@ Render.createESPPreviewRow = function(entry)
     local dragStart
     local dragInput
     local startPosition
+    local function clampPreviewPosition(position)
+        local viewportSize = getViewportSize()
+        return Vector2.new(
+            math.clamp(position.X, 10, math.max(10, viewportSize.X - previewSize.X - 10)),
+            math.clamp(position.Y, 10, math.max(10, viewportSize.Y - previewSize.Y - 10))
+        )
+    end
 
-    header.InputBegan:Connect(function(input)
+    dragHandle.InputBegan:Connect(function(input)
         if input.UserInputType ~= Enum.UserInputType.MouseButton1 then
             return
         end
@@ -4498,7 +4514,7 @@ Render.createESPPreviewRow = function(entry)
         end)
     end)
 
-    header.InputChanged:Connect(function(input)
+    dragHandle.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseMovement then
             dragInput = input
         end
@@ -4514,14 +4530,12 @@ Render.createESPPreviewRow = function(entry)
             startPosition.X.Offset + delta.X,
             startPosition.Y.Offset + delta.Y
         )
-        local clampedPosition = clampGuiPositionToViewport(shell.outline, anchoredPosition)
+        local clampedPosition = clampPreviewPosition(anchoredPosition)
         shell.outline.Position = UDim2.fromOffset(
             clampedPosition.X,
             clampedPosition.Y
         )
     end))
-
-    local rotation = 0
 
     local function updatePreviewVisibility()
         local isVisible = (entry.visible ~= false) and MenuState.introDone and MenuState.visible
@@ -4598,13 +4612,6 @@ Render.createESPPreviewRow = function(entry)
         end
 
         updatePreviewPosition()
-        if character.PrimaryPart then
-            rotation = (rotation + 0.5) % 360
-            character:SetPrimaryPartCFrame(
-                CFrame.new(Vector3.new(0, 1, -6)) * CFrame.Angles(0, math.rad(rotation), 0)
-            )
-        end
-
         updateHealthBar()
         refreshPreview()
     end))
