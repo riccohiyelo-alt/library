@@ -4159,9 +4159,286 @@ end
 
 end
 
+local function getFlagState(flagName)
+    local entry = EntryMap[flagName]
+    return (entry and entry.state) == true or (entry and entry.mode == "always")
+end
+
+local function getFlagColor(flagName)
+    local entry = EntryMap[flagName]
+    return entry and entry.color or Color3.new(1, 1, 1)
+end
+
+local function getFlagValue(flagName)
+    local entry = EntryMap[flagName]
+    return entry and entry.value or ""
+end
+
+Render.createESPPreviewRow = function(entry)
+    createSubsectionHeader(entry)
+    local section = Layout.getSection(entry.tab, entry.column, entry.section)
+
+    local rowShell = addShell(section.holder, UDim2.new(1, -2, 0, 220), UDim2.fromOffset(0, 0), false, 0, 21)
+    local background = rowShell.background
+
+    local viewport = create("ViewportFrame", {
+        Parent = background,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 1, 0),
+        ZIndex = 22,
+    })
+
+    local camera = create("Camera", {
+        Parent = viewport,
+        FieldOfView = 70,
+        CameraType = Enum.CameraType.Scriptable,
+    })
+    viewport.CurrentCamera = camera
+
+    local cleanDescription = Instance.new("HumanoidDescription")
+    local character
+    pcall(function()
+        character = Services.Players:CreateHumanoidModelFromDescription(cleanDescription, Enum.HumanoidRigType.R15)
+    end)
+    if not character then
+        character = Instance.new("Model")
+        local root = Instance.new("Part")
+        root.Name = "HumanoidRootPart"
+        root.Parent = character
+        character.PrimaryPart = root
+    end
+    character.Name = "PreviewDummy"
+
+    local root = character:WaitForChild("HumanoidRootPart", 2)
+    if root then 
+        character.PrimaryPart = root
+    end
+
+    local animateScript = character:FindFirstChild("Animate")
+    if animateScript then
+        animateScript:Destroy()
+    end
+
+    character.Parent = viewport
+    
+    local lookCFrame = CFrame.new(Vector3.new(0, 1, -6), Vector3.new(0, 1, 0))
+    if character.PrimaryPart then
+        character:SetPrimaryPartCFrame(lookCFrame)
+    end
+    camera.CFrame = CFrame.new(Vector3.new(0, 1, 0))
+
+    local holder = create("Frame", {
+        Parent = viewport,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0.5, 0, 0.5, 10),
+        Size = UDim2.fromOffset(135, 190),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        ZIndex = 23,
+    })
+    
+    local cacheInfoFrame = create("Frame", {
+        Parent = nil,
+        Visible = false
+    })
+
+    local objects = { holder = holder, cache = cacheInfoFrame }
+    
+    objects.box_outline = create("UIStroke" , {
+        Parent = cacheInfoFrame,
+        LineJoinMode = Enum.LineJoinMode.Miter
+    })
+
+    objects.name = create("TextLabel", {
+        Parent = cacheInfoFrame,
+        BackgroundTransparency = 1,
+        Text = string.format("%s (@%s)", LocalPlayer.DisplayName, LocalPlayer.Name),
+        AnchorPoint = Vector2.new(0, 1),
+        Position = UDim2.new(0, 0, 0, -5),
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 12,
+        ZIndex = 24,
+    })
+    create("UIStroke", { Parent = objects.name, Transparency = 0.5, Thickness = 1, LineJoinMode = Enum.LineJoinMode.Miter })
+
+    objects.box_handler = create("Frame", {
+        Parent = cacheInfoFrame,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 1, 0, 1),
+        Size = UDim2.new(1, -2, 1, -2),
+        ZIndex = 24,
+    })
+    objects.box_color = create("UIStroke", {
+        Parent = objects.box_handler,
+        LineJoinMode = Enum.LineJoinMode.Miter,
+        Color = Color3.new(1, 1, 1)
+    })
+    objects.outline = create("Frame", {
+        Parent = objects.box_handler,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 1, 0, 1),
+        Size = UDim2.new(1, -2, 1, -2),
+        ZIndex = 24,
+    })
+    create("UIStroke", { Parent = objects.outline, LineJoinMode = Enum.LineJoinMode.Miter })
+
+    objects.corners = create("Frame", {
+        Parent = cacheInfoFrame,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, -1, 0, 2),
+        Size = UDim2.new(1, 0, 1, 0),
+        ZIndex = 24,
+    })
+
+    local function makeCorner(parent, position, size, anchor, rotation)
+        local frame = create("Frame", {
+            Parent = parent,
+            BackgroundColor3 = Color3.new(0, 0, 0),
+            BorderSizePixel = 0,
+            Position = position,
+            Size = size,
+            AnchorPoint = anchor or Vector2.new(0, 0),
+            Rotation = rotation or 0,
+            ZIndex = 24,
+        })
+        local inner = create("Frame", {
+            Parent = frame,
+            BorderSizePixel = 0,
+            Position = UDim2.new(0, 1, 0, 1),
+            Size = UDim2.new(1, -2, 1, -2),
+            ZIndex = 25,
+            BackgroundColor3 = Color3.new(1, 1, 1)
+        })
+        return { outline = frame, inner = inner }
+    end
+
+    objects.corner1 = makeCorner(objects.corners, UDim2.new(0, 0, 0, -2), UDim2.new(0.4, 0, 0, 3))
+    objects.corner2 = makeCorner(objects.corners, UDim2.new(0, 0, 0, 1), UDim2.new(0, 3, 0.25, 0))
+    objects.corner3 = makeCorner(objects.corners, UDim2.new(1, 0, 0, -2), UDim2.new(0.4, 0, 0, 3), Vector2.new(1, 0))
+    objects.corner4 = makeCorner(objects.corners, UDim2.new(1, 0, 0, 1), UDim2.new(0, 3, 0.25, 0), Vector2.new(1, 0))
+    objects.corner5 = makeCorner(objects.corners, UDim2.new(0, -1, 1, -2), UDim2.new(0.4, 0, 0, 3), Vector2.new(0, 1))
+    objects.corner6 = makeCorner(objects.corners, UDim2.new(0, 0, 1, -4), UDim2.new(0, 3, 0.25, 1), Vector2.new(0, 1), 180)
+    objects.corner7 = makeCorner(objects.corners, UDim2.new(1, -1, 1, -2), UDim2.new(0.4, 0, 0, 3), Vector2.new(1, 1))
+    objects.corner8 = makeCorner(objects.corners, UDim2.new(1, 0, 1, -4), UDim2.new(0, 3, 0.25, 1), Vector2.new(1, 1), 180)
+    
+    objects.corner2.inner.Position = UDim2.new(0, 1, 0, -2)
+    objects.corner2.inner.Size = UDim2.new(1, -2, 1, 1)
+    objects.corner4.inner.Position = UDim2.new(0, 1, 0, -2)
+    objects.corner4.inner.Size = UDim2.new(1, -2, 1, 1)
+    objects.corner6.inner.Position = UDim2.new(0, 1, 0, -2)
+    objects.corner6.inner.Size = UDim2.new(1, -2, 1, 1)
+    objects.corner8.inner.Position = UDim2.new(0, 1, 0, -2)
+    objects.corner8.inner.Size = UDim2.new(1, -2, 1, 1)
+
+    objects.healthbar_holder = create("Frame", {
+        Parent = cacheInfoFrame,
+        BackgroundColor3 = Color3.new(0, 0, 0),
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, -5, 0, 0),
+        Size = UDim2.new(0, 4, 1, 0),
+        AnchorPoint = Vector2.new(1, 0),
+        ZIndex = 24,
+    })
+
+    objects.healthbar = create("Frame", {
+        Parent = objects.healthbar_holder,
+        BackgroundColor3 = Color3.new(1, 1, 1),
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 1, 0, 1),
+        Size = UDim2.new(1, -2, 1, -2),
+        ZIndex = 25,
+    })
+
+    objects.distance = create("TextLabel", {
+        Parent = cacheInfoFrame,
+        BackgroundTransparency = 1,
+        Text = "127st",
+        Position = UDim2.new(0, 0, 1, 5),
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 12,
+        ZIndex = 24,
+    })
+    create("UIStroke", { Parent = objects.distance, Transparency = 0.5, Thickness = 1, LineJoinMode = Enum.LineJoinMode.Miter })
+
+    objects.weapon = create("TextLabel", {
+        Parent = cacheInfoFrame,
+        BackgroundTransparency = 1,
+        Text = "[ Weapon ]",
+        Position = UDim2.new(0, 0, 1, 19),
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 12,
+        ZIndex = 24,
+    })
+    create("UIStroke", { Parent = objects.weapon, Transparency = 0.5, Thickness = 1, LineJoinMode = Enum.LineJoinMode.Miter })
+
+    local function change_health()
+        if objects.healthbar_holder.Parent ~= objects.holder then return end
+        local maxHealth = 100
+        local multiplier = maxHealth * math.abs(math.sin(tick() * 2)) / maxHealth
+        local lowColor = getFlagColor("Health_Low")
+        local highColor = getFlagColor("Health_High")
+        local color = lowColor:Lerp(highColor, multiplier)
+        
+        objects.healthbar.Size = UDim2.new(1, -2, multiplier, -2)
+        objects.healthbar.Position = UDim2.new(0, 1, 1 - multiplier, 1)
+        objects.healthbar.BackgroundColor3 = color
+    end
+
+    local function refresh_elements()
+        objects.holder.Parent = getFlagState("Enabled") and viewport or cacheInfoFrame
+
+        objects.name.TextColor3 = getFlagColor("Name_Color")
+        objects.name.Parent = getFlagState("Names") and objects.holder or cacheInfoFrame
+
+        objects.distance.TextColor3 = getFlagColor("Distance_Color")
+        objects.distance.Parent = getFlagState("Distance") and objects.holder or cacheInfoFrame
+
+        objects.weapon.TextColor3 = getFlagColor("Weapon_Color")
+        objects.weapon.Parent = getFlagState("Weapon") and objects.holder or cacheInfoFrame
+
+        objects.healthbar_holder.Parent = getFlagState("Healthbar") and objects.holder or cacheInfoFrame
+
+        local is_corner = getFlagValue("Box_Type") == "Corner"
+
+        if getFlagState("Boxes") then
+            if is_corner then
+                objects.corners.Parent = objects.holder
+                objects.box_handler.Parent = cacheInfoFrame
+                objects.box_outline.Parent = cacheInfoFrame
+            else
+                objects.box_handler.Parent = objects.holder
+                objects.box_outline.Parent = objects.holder
+                objects.corners.Parent = cacheInfoFrame
+            end
+        else
+            objects.corners.Parent = cacheInfoFrame
+            objects.box_handler.Parent = cacheInfoFrame
+            objects.box_outline.Parent = cacheInfoFrame
+        end
+
+        local boxCol = getFlagColor("Box_Color")
+        objects.box_color.Color = boxCol
+        for i = 1, 8 do
+            objects["corner"..i].inner.BackgroundColor3 = boxCol
+        end
+    end
+
+    trackRuntimeConnection(Services.RunService.RenderStepped:Connect(function()
+        change_health()
+        refresh_elements()
+    end))
+end
+
 for _, entry in ipairs(Entries) do
     if entry.kind == "toggle" then
         Render.createToggleRow(entry)
+    elseif entry.kind == "esppreview" then
+        Render.createESPPreviewRow(entry)
     elseif entry.kind == "button" then
         Render.createButtonRow(entry)
     elseif entry.kind == "slider" then
@@ -5228,6 +5505,10 @@ function SectionMethods:AddKeybind(config)
     entry.bind = config and config.Default or nil
     entry.callback = config and config.Callback or nil
     entry.changed = config and config.Changed or nil
+    return registerEntry(entry)
+end
+function SectionMethods:AddESPPreview(config)
+    local entry = buildSectionEntry(self, "esppreview", config)
     return registerEntry(entry)
 end
 
