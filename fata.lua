@@ -956,42 +956,42 @@ WindowShell.settingsButton = create("ImageButton", {
 })
 registerTheme("textDim", WindowShell.settingsButton, "ImageColor3")
 
-WindowShell.sidebarBackdrop = create("Frame", {
-    Parent = WindowShell.background,
+local SidebarShell = addShell(
+    WindowShell.background,
+    UDim2.new(0, SidebarWidth, 1, -(SidebarTitleHeight + 42)),
+    UDim2.fromOffset(4, SidebarTitleHeight + 12),
+    false,
+    0,
+    12
+)
+SidebarShell.inline.BackgroundTransparency = 0.28
+SidebarShell.background.BackgroundTransparency = 0.66
+
+WindowShell.sidebarTint = create("Frame", {
+    Parent = SidebarShell.background,
     BorderSizePixel = 0,
     BackgroundColor3 = Theme.section,
-    Position = UDim2.fromOffset(4, 4),
-    Size = UDim2.new(0, SidebarWidth, 1, -30),
-    BackgroundTransparency = 0.82,
-    ZIndex = 12,
+    Position = UDim2.fromOffset(0, 0),
+    Size = UDim2.new(1, 0, 1, 0),
+    BackgroundTransparency = 0.92,
+    ZIndex = 14,
 })
-registerTheme("section", WindowShell.sidebarBackdrop, "BackgroundColor3")
+registerTheme("section", WindowShell.sidebarTint, "BackgroundColor3")
 
-WindowShell.sidebarBackdropGradient = applyGradient(
-    WindowShell.sidebarBackdrop,
-    Theme.high,
-    Theme.low,
+WindowShell.sidebarTintGradient = applyGradient(
+    WindowShell.sidebarTint,
+    Theme.sectionHigh,
+    Theme.sectionLow,
     90
 )
-registerTheme("contrast", WindowShell.sidebarBackdropGradient, "Color")
-
-WindowShell.sidebarDivider = create("Frame", {
-    Parent = WindowShell.background,
-    BorderSizePixel = 0,
-    BackgroundColor3 = Theme.inline,
-    Position = UDim2.fromOffset(SidebarWidth + 4, 6),
-    Size = UDim2.new(0, 1, 1, -34),
-    BackgroundTransparency = 0.94,
-    ZIndex = 13,
-})
-registerTheme("inline", WindowShell.sidebarDivider, "BackgroundColor3")
+registerTheme("sectionContrast", WindowShell.sidebarTintGradient, "Color")
 
 local TabHolder = create("Frame", {
-    Parent = WindowShell.background,
+    Parent = SidebarShell.background,
     BackgroundTransparency = 1,
-    Position = UDim2.fromOffset(SidebarPadding, SidebarTitleHeight + 14),
-    Size = UDim2.new(0, SidebarWidth - (SidebarPadding * 2), 1, -(SidebarTitleHeight + 42)),
-    ZIndex = 14,
+    Position = UDim2.fromOffset(6, 6),
+    Size = UDim2.new(1, -12, 1, -12),
+    ZIndex = 15,
 })
 
 create("UIListLayout", {
