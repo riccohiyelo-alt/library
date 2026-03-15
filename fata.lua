@@ -950,7 +950,7 @@ SidebarShell.outline = create("Frame", {
     BackgroundColor3 = Theme.outline,
     Position = UDim2.fromOffset(4, 4),
     Size = UDim2.new(0, SidebarWidth, 1, -8),
-    BackgroundTransparency = 0.72,
+    BackgroundTransparency = 0.82,
     ZIndex = 12,
 })
 registerTheme("outline", SidebarShell.outline, "BackgroundColor3")
@@ -966,13 +966,23 @@ SidebarShell.background = create("Frame", {
 })
 registerTheme("inline", SidebarShell.background, "BackgroundColor3")
 
+WindowShell.sidebarGlass = create("Frame", {
+    Parent = SidebarShell.background,
+    BorderSizePixel = 0,
+    BackgroundColor3 = Theme.low,
+    Size = UDim2.new(1, 0, 1, 0),
+    BackgroundTransparency = 0.5,
+    ZIndex = 13,
+})
+registerTheme("inline", WindowShell.sidebarGlass, "BackgroundColor3")
+
 WindowShell.sidebarDivider = create("Frame", {
     Parent = SidebarShell.outline,
     BorderSizePixel = 0,
     BackgroundColor3 = Theme.outline,
     Position = UDim2.new(1, -1, 0, 0),
     Size = UDim2.new(0, 1, 1, 0),
-    BackgroundTransparency = 0.2,
+    BackgroundTransparency = 0.55,
     ZIndex = 14,
 })
 registerTheme("outline", WindowShell.sidebarDivider, "BackgroundColor3")
