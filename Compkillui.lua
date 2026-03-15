@@ -631,7 +631,7 @@ do
 
     create("UIListLayout", {
         Parent = introLetters,
-        FillDirection = Enum.FillDirection.Vertical,
+        FillDirection = Enum.FillDirection.Horizontal,
         HorizontalAlignment = Enum.HorizontalAlignment.Center,
         VerticalAlignment = Enum.VerticalAlignment.Center,
         SortOrder = Enum.SortOrder.LayoutOrder,
@@ -6252,6 +6252,5 @@ MenuState.introDone = false
 MenuState.visible = false
 
 return Atlanta
-
 
 
