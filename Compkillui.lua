@@ -4163,9 +4163,24 @@ local function getFlagState(flagName)
     return (entry and entry.state) == true or (entry and entry.mode == "always")
 end
 
-local function getFlagColor(flagName)
+local function hasFlagEntry(flagName)
+    return EntryMap[flagName] ~= nil
+end
+
+local function getFlagColor(flagName, fallbackFlagName)
     local entry = EntryMap[flagName]
-    return entry and entry.color or Color3.new(1, 1, 1)
+    if entry and typeof(entry.color) == "Color3" then
+        return entry.color
+    end
+
+    if fallbackFlagName then
+        local fallbackEntry = EntryMap[fallbackFlagName]
+        if fallbackEntry and typeof(fallbackEntry.color) == "Color3" then
+            return fallbackEntry.color
+        end
+    end
+
+    return Color3.new(1, 1, 1)
 end
 
 local function getFlagValue(flagName)
@@ -4594,8 +4609,9 @@ Render.createESPPreviewRow = function(entry)
         end
 
         local alpha = math.abs(math.sin(tick() * 2))
-        local lowColor = getFlagColor("Health_Low")
-        local highColor = getFlagColor("Health_High")
+        local hasCustomHealthGradient = hasFlagEntry("Health_Low") or hasFlagEntry("Health_High")
+        local lowColor = hasCustomHealthGradient and getFlagColor("Health_Low", "Healthbar") or getFlagColor("Healthbar")
+        local highColor = hasCustomHealthGradient and getFlagColor("Health_High", "Healthbar") or lowColor
         objects.healthbar.Size = UDim2.new(1, -2, alpha, -2)
         objects.healthbar.Position = UDim2.new(0, 1, 1 - alpha, 1)
         objects.healthbar.BackgroundColor3 = lowColor:Lerp(highColor, alpha)
@@ -4607,18 +4623,18 @@ Render.createESPPreviewRow = function(entry)
         local enabled = getFlagState("Enabled")
         holder.Visible = enabled
 
-        objects.name.TextColor3 = getFlagColor("Name_Color")
+        objects.name.TextColor3 = getFlagColor("Name_Color", "Names")
         objects.name.Parent = enabled and getFlagState("Names") and holder or cacheInfoFrame
 
-        objects.distance.TextColor3 = getFlagColor("Distance_Color")
+        objects.distance.TextColor3 = getFlagColor("Distance_Color", "Distance")
         objects.distance.Parent = enabled and getFlagState("Distance") and holder or cacheInfoFrame
 
-        objects.weapon.TextColor3 = getFlagColor("Weapon_Color")
+        objects.weapon.TextColor3 = getFlagColor("Weapon_Color", "Weapon")
         objects.weapon.Parent = enabled and getFlagState("Weapon") and holder or cacheInfoFrame
 
         objects.healthbarHolder.Parent = enabled and getFlagState("Healthbar") and holder or cacheInfoFrame
 
-        local boxColor = getFlagColor("Box_Color")
+        local boxColor = getFlagColor("Box_Color", "Boxes")
         objects.boxColor.Color = boxColor
         for index = 1, 8 do
             objects["corner" .. index].inner.BackgroundColor3 = boxColor
