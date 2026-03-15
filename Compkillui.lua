@@ -4850,14 +4850,105 @@ for _, entry in ipairs(Entries) do
 end
 
 Layout.selectTab = function(id, preserveNavigationItem)
+    local function fallbackNavigationItemById(itemId)
+        for _, definition in ipairs(TabDefinitions) do
+            for _, sectionMeta in ipairs(definition.sectionOrder or {}) do
+                if #sectionMeta.subsections > 0 then
+                    for _, subsectionMeta in ipairs(sectionMeta.subsections) do
+                        if subsectionMeta.id == itemId then
+                            return {
+                                id = subsectionMeta.id,
+                                tabId = definition.id,
+                                sectionName = sectionMeta.name,
+                                subsectionName = subsectionMeta.name,
+                                label = subsectionMeta.name,
+                                kind = "subsection",
+                            }
+                        end
+                    end
+                else
+                    local sectionId = string.format("%s::section::%s", definition.id, sectionMeta.name)
+                    if sectionId == itemId then
+                        return {
+                            id = sectionId,
+                            tabId = definition.id,
+                            sectionName = sectionMeta.name,
+                            subsectionName = nil,
+                            label = sectionMeta.name,
+                            kind = "section",
+                        }
+                    end
+                end
+            end
+
+            local rootId = string.format("%s::root", definition.id)
+            if rootId == itemId then
+                return {
+                    id = rootId,
+                    tabId = definition.id,
+                    sectionName = nil,
+                    subsectionName = nil,
+                    label = definition.name,
+                    kind = "root",
+                }
+            end
+        end
+
+        return nil
+    end
+
+    local function fallbackDefaultNavigationItemId(tabId)
+        for _, definition in ipairs(TabDefinitions) do
+            if definition.id == tabId then
+                local firstSection = definition.sectionOrder and definition.sectionOrder[1]
+                if not firstSection then
+                    return string.format("%s::root", definition.id)
+                end
+
+                local firstSubsection = firstSection.subsections and firstSection.subsections[1]
+                if firstSubsection and firstSubsection.id then
+                    return firstSubsection.id
+                end
+
+                return string.format("%s::section::%s", definition.id, firstSection.name)
+            end
+        end
+
+        return nil
+    end
+
+    local function safeResolveNavigationItemById(itemId)
+        local resolver = Layout.resolveNavigationItemById
+        if type(resolver) == "function" then
+            local ok, result = pcall(resolver, itemId)
+            if ok and result ~= nil then
+                return result
+            end
+        end
+
+        return fallbackNavigationItemById(itemId)
+    end
+
+    local function safeResolveDefaultNavigationItemId(tabId)
+        local resolver = Layout.resolveDefaultNavigationItemId
+        if type(resolver) == "function" then
+            local ok, result = pcall(resolver, tabId)
+            if ok and result ~= nil then
+                return result
+            end
+        end
+
+        return fallbackDefaultNavigationItemId(tabId)
+    end
+
     CurrentTab = id
 
     if not preserveNavigationItem then
-        NavigationState.selectedItem = Layout.resolveDefaultNavigationItemId(id)
+        NavigationState.selectedItem = safeResolveDefaultNavigationItemId(id)
     elseif NavigationState.selectedItem then
-        local selectedItem = Layout.resolveNavigationItemById(NavigationState.selectedItem)
+        local selectedItem = safeResolveNavigationItemById(NavigationState.selectedItem)
         if not selectedItem or selectedItem.tabId ~= id then
-            NavigationState.selectedItem = Layout.resolveDefaultNavigationItemId(id)
+            NavigationState.selectedItem = safeResolveDefaultNavigationItemId(id)
         end
     end
 
@@ -4867,7 +4958,7 @@ Layout.selectTab = function(id, preserveNavigationItem)
         tab.page.Position = UDim2.fromOffset(0, 0)
     end
 
-    local selectedItem = Layout.resolveNavigationItemById(NavigationState.selectedItem)
+    local selectedItem = safeResolveNavigationItemById(NavigationState.selectedItem)
     local currentTab = Tabs[id]
     if currentTab and currentTab.pageSubtitle then
         currentTab.pageSubtitle.Text = selectedItem and selectedItem.label or "structured layout"
