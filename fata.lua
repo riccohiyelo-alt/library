@@ -745,6 +745,9 @@ local DefaultWindowPosition = UDim2.new(0.5, -96, 0.5, -16)
 local MenuHiddenOffset = Vector2.new(0, 14)
 local MenuShowStartScale = 0.945
 local MenuHideEndScale = 0.965
+local SidebarWidth = 126
+local SidebarPadding = 8
+local SidebarTitleHeight = 24
 
 local Runtime = {
     initialized = false,
@@ -891,10 +894,23 @@ end
 WindowShell.header = create("Frame", {
     Parent = WindowShell.background,
     BackgroundTransparency = 1,
-    Size = UDim2.new(1, -12, 0, 20),
-    Position = UDim2.fromOffset(6, 4),
+    Size = UDim2.new(1, -(SidebarWidth + 18), 0, 20),
+    Position = UDim2.fromOffset(SidebarWidth + 12, 4),
     ZIndex = 14,
 })
+
+WindowShell.sidebarTitle = createThemedText(WindowShell.background, {
+    Parent = WindowShell.background,
+    BackgroundTransparency = 1,
+    Position = UDim2.fromOffset(SidebarPadding, 6),
+    Size = UDim2.new(0, SidebarWidth - (SidebarPadding * 2), 0, SidebarTitleHeight),
+    Font = Enum.Font.GothamBold,
+    Text = "NeverPaste",
+    TextSize = 18,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextYAlignment = Enum.TextYAlignment.Center,
+    ZIndex = 14,
+}, false)
 
 WindowShell.titleLabel = createThemedText(WindowShell.header, {
     Parent = WindowShell.header,
@@ -906,8 +922,10 @@ WindowShell.titleLabel = createThemedText(WindowShell.header, {
     TextSize = 12,
     TextXAlignment = Enum.TextXAlignment.Left,
     TextYAlignment = Enum.TextYAlignment.Center,
+    TextTransparency = 1,
     ZIndex = 14,
 }, false)
+WindowShell.titleLabel.Visible = false
 
 WindowShell.titleRightLabel = createThemedText(WindowShell.header, {
     Parent = WindowShell.header,
@@ -936,22 +954,40 @@ WindowShell.settingsButton = create("ImageButton", {
 })
 registerTheme("textDim", WindowShell.settingsButton, "ImageColor3")
 
+WindowShell.sidebarDivider = create("Frame", {
+    Parent = WindowShell.background,
+    BorderSizePixel = 0,
+    BackgroundColor3 = Theme.inline,
+    Position = UDim2.fromOffset(SidebarWidth + 4, 6),
+    Size = UDim2.new(0, 1, 1, -34),
+    BackgroundTransparency = 0.2,
+    ZIndex = 13,
+})
+registerTheme("inline", WindowShell.sidebarDivider, "BackgroundColor3")
+
 local TabHolder = create("Frame", {
     Parent = WindowShell.background,
     BackgroundTransparency = 1,
-    Position = UDim2.fromOffset(6, 22),
-    Size = UDim2.new(0, 110, 1, -50),
+    Position = UDim2.fromOffset(SidebarPadding, SidebarTitleHeight + 14),
+    Size = UDim2.new(0, SidebarWidth - (SidebarPadding * 2), 1, -(SidebarTitleHeight + 42)),
     ZIndex = 14,
 })
 
 create("UIListLayout", {
     Parent = TabHolder,
     FillDirection = Enum.FillDirection.Vertical,
-    Padding = UDim.new(0, 2),
+    Padding = UDim.new(0, 4),
     SortOrder = Enum.SortOrder.LayoutOrder,
 })
 
-local ContentShell = addShell(WindowShell.background, UDim2.new(1, -122, 1, -50), UDim2.fromOffset(120, 22), false, 0, 12)
+local ContentShell = addShell(
+    WindowShell.background,
+    UDim2.new(1, -(SidebarWidth + 18), 1, -38),
+    UDim2.fromOffset(SidebarWidth + 12, 22),
+    false,
+    0,
+    12
+)
 
 create("UIPadding", {
     Parent = ContentShell.background,
@@ -3285,27 +3321,41 @@ Layout.createTab = function(id, name, iconAsset, order)
     local columnGap = 6
     local columnCount = 3
     local columnWidthOffset = -math.floor((columnGap * (columnCount - 1)) / columnCount + 0.5)
-    local buttonShell = addShell(TabHolder, UDim2.new(1, 0, 0, 26), UDim2.fromOffset(0, 0), false, 0, 16)
+    local buttonShell = addShell(TabHolder, UDim2.new(1, 0, 0, 28), UDim2.fromOffset(0, 0), false, 0, 16)
     buttonShell.outline.LayoutOrder = order
+    buttonShell.outline.BackgroundTransparency = 1
+    buttonShell.inline.BackgroundTransparency = 1
+    buttonShell.background.BackgroundTransparency = 1
 
     local fill = create("Frame", {
         Parent = buttonShell.background,
-        AnchorPoint = Vector2.new(0.5, 0.5),
+        AnchorPoint = Vector2.new(0, 0.5),
         BorderSizePixel = 0,
         BackgroundColor3 = Theme.accent,
-        Position = UDim2.new(0.5, 0, 0.5, 0),
-        Size = UDim2.new(0, 0, 1, 0),
-        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 0, 0.5, 0),
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 0.92,
         ZIndex = 19,
     })
     registerTheme("accent", fill, "BackgroundColor3")
+    applyCorner(fill, 3)
+
+    local activeBar = create("Frame", {
+        Parent = fill,
+        BorderSizePixel = 0,
+        BackgroundColor3 = Theme.accent,
+        Position = UDim2.fromOffset(0, 4),
+        Size = UDim2.new(0, 2, 1, -8),
+        ZIndex = 20,
+    })
+    registerTheme("accent", activeBar, "BackgroundColor3")
 
     local icon = create("ImageLabel", {
         Parent = buttonShell.background,
         BackgroundTransparency = 1,
         AnchorPoint = Vector2.new(0, 0.5),
-        Position = UDim2.new(0, 8, 0.5, 0),
-        Size = UDim2.fromOffset(14, 14),
+        Position = UDim2.new(0, 10, 0.5, 0),
+        Size = UDim2.fromOffset(13, 13),
         Image = iconAsset,
         ImageColor3 = Theme.textDim,
         ZIndex = 20,
@@ -3315,11 +3365,11 @@ Layout.createTab = function(id, name, iconAsset, order)
     local label = createThemedText(buttonShell.background, {
         Parent = buttonShell.background,
         BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(26, 0),
-        Size = UDim2.new(1, -26, 1, 0),
+        Position = UDim2.fromOffset(30, 0),
+        Size = UDim2.new(1, -32, 1, 0),
         Font = Enum.Font.GothamMedium,
         Text = name,
-        TextSize = 12,
+        TextSize = 11,
         TextXAlignment = Enum.TextXAlignment.Left,
         ZIndex = 20,
     }, false)
@@ -3373,6 +3423,7 @@ Layout.createTab = function(id, name, iconAsset, order)
         icon = icon,
         label = label,
         fill = fill,
+        activeBar = activeBar,
         hitbox = hitbox,
         page = page,
         columns = columns,
@@ -4196,10 +4247,13 @@ Layout.selectTab = function(id)
 
     for tabId, tab in pairs(Tabs) do
         local selected = tabId == id
-        tab.fill.BackgroundTransparency = selected and 0 or 1
-        tab.fill.Size = selected and UDim2.new(1, 0, 1, 0) or UDim2.new(0, 0, 1, 0)
+        tab.fill.BackgroundTransparency = selected and 0.9 or 1
+        tab.fill.Visible = selected
+        if tab.activeBar then
+            tab.activeBar.Visible = selected
+        end
         tab.icon.ImageColor3 = selected and Theme.text or Theme.textDim
-        tab.label.TextColor3 = selected and Theme.text or Theme.text
+        tab.label.TextColor3 = selected and Theme.text or Theme.textDim
         tab.page.Visible = selected
         tab.page.Position = UDim2.fromOffset(0, 0)
     end
