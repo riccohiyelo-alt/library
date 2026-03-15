@@ -1031,8 +1031,11 @@ Atlanta.__index = Atlanta
 local WindowMethods = {}
 WindowMethods.__index = WindowMethods
 
-local CategoryMethods = {}\nCategoryMethods.__index = CategoryMethods\nlocal TabMethods = {}\nTabMethods.__index = TabMethods
-MenuMethods.__index = MenuMethods
+local CategoryMethods = {}
+CategoryMethods.__index = CategoryMethods
+
+local TabMethods = {}
+TabMethods.__index = TabMethods
 
 local SectionMethods = {}
 SectionMethods.__index = SectionMethods
@@ -6538,7 +6541,8 @@ Atlanta.Utilities = {
 -- Components
 Atlanta.Components = {
     Window = WindowMethods,
-    Category = CategoryMethods,\n    Tab = TabMethods,
+    Category = CategoryMethods,
+    Tab = TabMethods,
     Section = SectionMethods,
     Control = ControlMethods,
 }
