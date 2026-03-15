@@ -997,7 +997,7 @@ SidebarShell.outline = create("Frame", {
     BackgroundColor3 = Theme.outline,
     Position = UDim2.fromOffset(4, 4),
     Size = UDim2.new(0, SidebarWidth, 1, -8),
-    BackgroundTransparency = 0.2,
+    BackgroundTransparency = 0,
     ZIndex = 12,
 })
 registerTheme("outline", SidebarShell.outline, "BackgroundColor3")
@@ -1009,40 +1009,42 @@ SidebarShell.background = create("Frame", {
     BackgroundColor3 = Theme.inline,
     Position = UDim2.fromOffset(1, 1),
     Size = UDim2.new(1, -2, 1, -2),
-    BackgroundTransparency = 1,
+    BackgroundTransparency = 0.08,
     ZIndex = 13,
 })
 registerTheme("inline", SidebarShell.background, "BackgroundColor3")
 applyCorner(SidebarShell.background, 7)
 SidebarShell.background.ClipsDescendants = true
 
+do
+    local sidebarBackgroundGradient = applyGradient(SidebarShell.background, Theme.high, Theme.low, 95)
+    registerTheme("contrast", sidebarBackgroundGradient, "Color")
+end
+
 WindowShell.sidebarGlass = create("Frame", {
     Parent = SidebarShell.background,
     BorderSizePixel = 0,
-    BackgroundColor3 = Theme.inline,
-    Size = UDim2.new(1, 0, 1, 0),
-    BackgroundTransparency = 0.14,
+    BackgroundColor3 = Theme.text,
+    Size = UDim2.new(1, 0, 0, 34),
+    BackgroundTransparency = 0.965,
     ZIndex = 13,
 })
-registerTheme("inline", WindowShell.sidebarGlass, "BackgroundColor3")
+registerTheme("text", WindowShell.sidebarGlass, "BackgroundColor3")
 applyCorner(WindowShell.sidebarGlass, 7)
 
 do
-    local sidebarGlassGradient = applyGradient(WindowShell.sidebarGlass, Theme.high, Theme.low, 95)
-    registerTheme("contrast", sidebarGlassGradient, "Color")
-
-    local sidebarGlassStroke = applyStroke(WindowShell.sidebarGlass, Theme.outline, 1, 0.2)
-    registerTheme("outline", sidebarGlassStroke, "Color")
-
     local sidebarTopGlow = create("Frame", {
         Parent = WindowShell.sidebarGlass,
         BorderSizePixel = 0,
         BackgroundColor3 = Theme.text,
-        BackgroundTransparency = 0.96,
-        Size = UDim2.new(1, 0, 0, 34),
+        BackgroundTransparency = 0.975,
+        AnchorPoint = Vector2.new(0.5, 0),
+        Position = UDim2.new(0.5, 0, 0, 8),
+        Size = UDim2.new(1, -18, 0, 14),
         ZIndex = 14,
     })
     registerTheme("text", sidebarTopGlow, "BackgroundColor3")
+    applyCorner(sidebarTopGlow, 6)
 end
 
 WindowShell.sidebarDivider = create("Frame", {
