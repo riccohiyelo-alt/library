@@ -419,6 +419,65 @@ local function addShell(parent, size, position, accentTop, radius, zindex)
     }
 end
 
+local function createSlideSwitch(parent, size, position, zindex)
+    local switchWidth = size.X.Offset
+    local switchHeight = size.Y.Offset
+    local knobSize = math.max(6, switchHeight - 4)
+
+    local track = create("Frame", {
+        Parent = parent,
+        BorderSizePixel = 0,
+        BackgroundColor3 = Color3.fromRGB(72, 84, 96),
+        BackgroundTransparency = 0.22,
+        Size = size,
+        Position = position or UDim2.fromOffset(0, 0),
+        ZIndex = zindex or 1,
+    })
+    applyCorner(track, math.floor(switchHeight * 0.5))
+
+    local trackStroke = applyStroke(track, Theme.outline, 1, 0.45)
+    registerTheme("outline", trackStroke, "Color")
+
+    local knob = create("Frame", {
+        Parent = track,
+        BorderSizePixel = 0,
+        BackgroundColor3 = Color3.fromRGB(179, 190, 200),
+        Position = UDim2.fromOffset(2, 2),
+        Size = UDim2.fromOffset(knobSize, knobSize),
+        ZIndex = (zindex or 1) + 1,
+    })
+    applyCorner(knob, math.floor(knobSize * 0.5))
+
+    local knobStroke = applyStroke(knob, Theme.outline, 1, 0.58)
+    registerTheme("outline", knobStroke, "Color")
+
+    return {
+        track = track,
+        knob = knob,
+        offPosition = UDim2.fromOffset(2, 2),
+        onPosition = UDim2.fromOffset(math.max(2, switchWidth - knobSize - 2), 2),
+    }
+end
+
+local function updateSlideSwitch(switch, enabled, accentColor)
+    if not switch or not switch.track or not switch.knob then
+        return
+    end
+
+    local onColor = accentColor or Theme.accent
+    local offColor = Color3.fromRGB(72, 84, 96)
+
+    tween(switch.track, 0.16, {
+        BackgroundColor3 = enabled and onColor or offColor,
+        BackgroundTransparency = enabled and 0.06 or 0.22,
+    }, Enum.EasingStyle.Quart)
+
+    tween(switch.knob, 0.16, {
+        Position = enabled and switch.onPosition or switch.offPosition,
+        BackgroundColor3 = enabled and Color3.fromRGB(244, 250, 255) or Color3.fromRGB(179, 190, 200),
+    }, Enum.EasingStyle.Quart)
+end
+
 local MouseButtons = {
     left = tryGetEnumItem(Enum.UserInputType, "MouseButton1"),
     right = tryGetEnumItem(Enum.UserInputType, "MouseButton2"),
@@ -908,6 +967,7 @@ WindowShell.titleLabel = createThemedText(WindowShell.header, {
     TextYAlignment = Enum.TextYAlignment.Center,
     ZIndex = 14,
 }, false)
+WindowShell.titleLabel.Visible = false
 
 WindowShell.titleRightLabel = createThemedText(WindowShell.header, {
     Parent = WindowShell.header,
@@ -936,18 +996,68 @@ WindowShell.settingsButton = create("ImageButton", {
 })
 registerTheme("textDim", WindowShell.settingsButton, "ImageColor3")
 
-local TabHolder = create("Frame", {
+local SidebarPanel = create("Frame", {
     Parent = WindowShell.background,
-    BackgroundTransparency = 1,
+    BorderSizePixel = 0,
+    BackgroundColor3 = Theme.section,
+    BackgroundTransparency = 0.9,
     Position = UDim2.fromOffset(6, 22),
     Size = UDim2.new(0, 110, 1, -50),
+    ZIndex = 13,
+})
+registerTheme("section", SidebarPanel, "BackgroundColor3")
+applyCorner(SidebarPanel, 10)
+
+local SidebarGradient = applyGradient(SidebarPanel, Theme.sectionHigh, Theme.sectionLow, 90)
+registerTheme("sectionContrast", SidebarGradient, "Color")
+
+local SidebarDivider = create("Frame", {
+    Parent = SidebarPanel,
+    AnchorPoint = Vector2.new(1, 0),
+    Position = UDim2.new(1, 0, 0, 0),
+    Size = UDim2.new(0, 1, 1, 0),
+    BorderSizePixel = 0,
+    BackgroundColor3 = Theme.textDim,
+    BackgroundTransparency = 0.82,
+    ZIndex = 14,
+})
+registerTheme("textDim", SidebarDivider, "BackgroundColor3")
+
+local SidebarTitleLabel = createThemedText(SidebarPanel, {
+    Parent = SidebarPanel,
+    BackgroundTransparency = 1,
+    Position = UDim2.fromOffset(10, 8),
+    Size = UDim2.new(1, -20, 0, 18),
+    Font = Enum.Font.GothamBold,
+    Text = "NeverPaste",
+    TextSize = 14,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    ZIndex = 15,
+}, false)
+
+local SidebarTitleDivider = create("Frame", {
+    Parent = SidebarPanel,
+    BorderSizePixel = 0,
+    BackgroundColor3 = Theme.textDim,
+    BackgroundTransparency = 0.86,
+    Position = UDim2.fromOffset(10, 31),
+    Size = UDim2.new(1, -20, 0, 1),
+    ZIndex = 14,
+})
+registerTheme("textDim", SidebarTitleDivider, "BackgroundColor3")
+
+local TabHolder = create("Frame", {
+    Parent = SidebarPanel,
+    BackgroundTransparency = 1,
+    Position = UDim2.fromOffset(8, 38),
+    Size = UDim2.new(1, -16, 1, -46),
     ZIndex = 14,
 })
 
 create("UIListLayout", {
     Parent = TabHolder,
     FillDirection = Enum.FillDirection.Vertical,
-    Padding = UDim.new(0, 2),
+    Padding = UDim.new(0, 4),
     SortOrder = Enum.SortOrder.LayoutOrder,
 })
 
@@ -1147,6 +1257,7 @@ do
     local function createMiniToggleRow(labelText, getter, setter)
         local row = create("TextButton", {
             Parent = settingsHolder,
+            BackgroundColor3 = Theme.accent,
             BackgroundTransparency = 1,
             BorderSizePixel = 0,
             Size = UDim2.new(1, 0, 0, 18),
@@ -1154,12 +1265,13 @@ do
             AutoButtonColor = false,
             ZIndex = 44,
         })
+        applyCorner(row, 6)
 
         local label = createThemedText(row, {
             Parent = row,
             BackgroundTransparency = 1,
             Position = UDim2.fromOffset(0, 0),
-            Size = UDim2.new(1, -22, 1, 0),
+            Size = UDim2.new(1, -30, 1, 0),
             Font = Enum.Font.GothamMedium,
             Text = labelText,
             TextSize = 12,
@@ -1167,27 +1279,29 @@ do
             ZIndex = 45,
         }, false)
 
-        local toggleShell = addShell(row, UDim2.fromOffset(14, 14), UDim2.new(1, -14, 0.5, -7), false, 0, 45)
-        local fill = create("Frame", {
-            Parent = toggleShell.background,
-            BorderSizePixel = 0,
-            BackgroundColor3 = Theme.accent,
-            Position = UDim2.fromOffset(1, 1),
-            Size = UDim2.new(1, -2, 1, -2),
-            BackgroundTransparency = 1,
-            ZIndex = 47,
-        })
-        registerTheme("accent", fill, "BackgroundColor3")
+        local switch = createSlideSwitch(row, UDim2.fromOffset(26, 14), UDim2.new(1, -26, 0.5, -7), 45)
 
         row.MouseButton1Click:Connect(function()
             setter(not getter())
+        end)
+
+        row.MouseEnter:Connect(function()
+            tween(row, 0.12, {
+                BackgroundTransparency = 0.95,
+            }, Enum.EasingStyle.Quad)
+        end)
+
+        row.MouseLeave:Connect(function()
+            tween(row, 0.12, {
+                BackgroundTransparency = 1,
+            }, Enum.EasingStyle.Quad)
         end)
 
         return {
             kind = "toggle",
             row = row,
             label = label,
-            fill = fill,
+            switch = switch,
             get = getter,
         }
     end
@@ -1270,7 +1384,7 @@ do
         for _, control in pairs(SettingsPanel) do
             if type(control) == "table" and control.kind == "toggle" then
                 local enabled = control.get()
-                control.fill.BackgroundTransparency = enabled and 0 or 1
+                updateSlideSwitch(control.switch, enabled, Theme.accent)
                 control.label.TextColor3 = enabled and Theme.text or Theme.textDim
             end
         end
@@ -2932,7 +3046,7 @@ local function getSectionFillHeight(section)
     end
 
     local relativeTop = section.outline.AbsolutePosition.Y - section.column.AbsolutePosition.Y
-    local availableHeight = columnHeight - relativeTop - 29
+    local availableHeight = columnHeight - relativeTop - ((section.headerHeight or 24) + 5)
     return math.max(0, availableHeight)
 end
 
@@ -2954,10 +3068,10 @@ Layout.updateShellSize = function(section, fillToBottom)
 
     local needsScroll = contentHeight > visibleHeight
 
-    section.holder.Size = UDim2.new(1, needsScroll and -4 or -8, 0, visibleHeight)
+    section.holder.Size = UDim2.new(1, needsScroll and -4 or 0, 0, visibleHeight)
     section.holder.CanvasSize = UDim2.fromOffset(0, contentHeight > 0 and (contentHeight + 2) or 0)
     section.holder.ScrollBarThickness = needsScroll and 4 or 0
-    section.outline.Size = UDim2.new(1, 0, 0, visibleHeight + 29)
+    section.outline.Size = UDim2.new(1, 0, 0, visibleHeight + (section.headerHeight or 24))
 end
 
 Layout.relayoutSectionColumn = function(tabId, columnIndex)
@@ -2973,8 +3087,8 @@ Layout.relayoutSectionColumn = function(tabId, columnIndex)
         return (left.layoutOrder or 0) < (right.layoutOrder or 0)
     end)
 
-    for index, section in ipairs(sortedSections) do
-        Layout.updateShellSize(section, index == #sortedSections)
+    for _, section in ipairs(sortedSections) do
+        Layout.updateShellSize(section, false)
     end
 end
 
@@ -3186,43 +3300,42 @@ Layout.getSection = function(tabId, columnIndex, name)
         end
     end
 
-    local shell = addShell(column, UDim2.new(1, 0, 0, 28), UDim2.fromOffset(0, 0), false, 0, 16)
+    local shell = addShell(column, UDim2.new(1, 0, 0, 24), UDim2.fromOffset(0, 0), false, 0, 16)
     shell.outline.AutomaticSize = Enum.AutomaticSize.None
     shell.outline.LayoutOrder = layoutOrder
-
-    local sectionTint = create("Frame", {
-        Parent = shell.background,
-        BorderSizePixel = 0,
-        BackgroundColor3 = Theme.section,
-        Position = UDim2.fromOffset(1, 1),
-        Size = UDim2.new(1, -2, 1, -2),
-        BackgroundTransparency = 0.93,
-        ZIndex = 18,
-    })
-    registerTheme("section", sectionTint, "BackgroundColor3")
-
-    local sectionTintGradient = applyGradient(sectionTint, Theme.sectionHigh, Theme.sectionLow, 90)
-    registerTheme("sectionContrast", sectionTintGradient, "Color")
+    shell.outline.BackgroundTransparency = 1
+    shell.inline.BackgroundTransparency = 1
+    shell.background.BackgroundTransparency = 1
 
     local title = createThemedText(shell.background, {
         Parent = shell.background,
         BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(8, 2),
-        Size = UDim2.new(1, -16, 0, 14),
-        Font = Enum.Font.GothamMedium,
+        Position = UDim2.fromOffset(0, 0),
+        Size = UDim2.new(1, 0, 0, 15),
+        Font = Enum.Font.GothamBold,
         Text = name,
-        TextSize = 12,
+        TextSize = 11,
         TextXAlignment = Enum.TextXAlignment.Left,
         ZIndex = 21,
     }, false)
 
+    local divider = create("Frame", {
+        Parent = shell.background,
+        BorderSizePixel = 0,
+        BackgroundColor3 = Theme.textDim,
+        BackgroundTransparency = 0.88,
+        Position = UDim2.fromOffset(0, 18),
+        Size = UDim2.new(1, 0, 0, 1),
+        ZIndex = 20,
+    })
+    registerTheme("textDim", divider, "BackgroundColor3")
+
     local holder = create("ScrollingFrame", {
         Parent = shell.background,
-        BackgroundColor3 = Theme.section,
-        BackgroundTransparency = 0.08,
+        BackgroundTransparency = 1,
         BorderSizePixel = 0,
-        Position = UDim2.fromOffset(4, 18),
-        Size = UDim2.new(1, -8, 0, 0),
+        Position = UDim2.fromOffset(0, 24),
+        Size = UDim2.new(1, 0, 0, 0),
         CanvasSize = UDim2.fromOffset(0, 0),
         ScrollBarImageColor3 = Theme.accent,
         ScrollBarThickness = 0,
@@ -3232,16 +3345,12 @@ Layout.getSection = function(tabId, columnIndex, name)
         MidImage = "",
         ZIndex = 20,
     })
-    registerTheme("section", holder, "BackgroundColor3")
     registerTheme("accent", holder, "ScrollBarImageColor3")
-
-    local holderGradient = applyGradient(holder, Theme.sectionHigh, Theme.sectionLow, 90)
-    registerTheme("sectionContrast", holderGradient, "Color")
 
     local layout = create("UIListLayout", {
         Parent = holder,
         FillDirection = Enum.FillDirection.Vertical,
-        Padding = UDim.new(0, 5),
+        Padding = UDim.new(0, 7),
         SortOrder = Enum.SortOrder.LayoutOrder,
     })
 
@@ -3259,6 +3368,8 @@ Layout.getSection = function(tabId, columnIndex, name)
         holder = holder,
         layout = layout,
         title = title,
+        divider = divider,
+        headerHeight = 24,
         maxContentHeight = 156,
         fixedHeight = false,
     }
@@ -3272,11 +3383,10 @@ Layout.getSection = function(tabId, columnIndex, name)
 end
 
 Layout.reflowTabButtons = function()
-    local count = math.max(#TabDefinitions, 1)
     for _, definition in ipairs(TabDefinitions) do
         local tab = Tabs[definition.id]
         if tab and tab.button and tab.button.outline then
-            tab.button.outline.Size = UDim2.new(1, 0, 0, 26)
+            tab.button.outline.Size = UDim2.new(1, 0, 0, 28)
         end
     end
 end
@@ -3285,23 +3395,29 @@ Layout.createTab = function(id, name, iconAsset, order)
     local columnGap = 6
     local columnCount = 3
     local columnWidthOffset = -math.floor((columnGap * (columnCount - 1)) / columnCount + 0.5)
-    local buttonShell = addShell(TabHolder, UDim2.new(1, 0, 0, 26), UDim2.fromOffset(0, 0), false, 0, 16)
-    buttonShell.outline.LayoutOrder = order
+    local buttonFrame = create("Frame", {
+        Parent = TabHolder,
+        BorderSizePixel = 0,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 0, 28),
+        ZIndex = 16,
+    })
+    buttonFrame.LayoutOrder = order
 
     local fill = create("Frame", {
-        Parent = buttonShell.background,
-        AnchorPoint = Vector2.new(0.5, 0.5),
+        Parent = buttonFrame,
         BorderSizePixel = 0,
         BackgroundColor3 = Theme.accent,
-        Position = UDim2.new(0.5, 0, 0.5, 0),
-        Size = UDim2.new(0, 0, 1, 0),
+        Position = UDim2.fromOffset(0, 0),
+        Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
         ZIndex = 19,
     })
     registerTheme("accent", fill, "BackgroundColor3")
+    applyCorner(fill, 7)
 
     local icon = create("ImageLabel", {
-        Parent = buttonShell.background,
+        Parent = buttonFrame,
         BackgroundTransparency = 1,
         AnchorPoint = Vector2.new(0, 0.5),
         Position = UDim2.new(0, 8, 0.5, 0),
@@ -3312,8 +3428,8 @@ Layout.createTab = function(id, name, iconAsset, order)
     })
     registerTheme("textDim", icon, "ImageColor3")
 
-    local label = createThemedText(buttonShell.background, {
-        Parent = buttonShell.background,
+    local label = createThemedText(buttonFrame, {
+        Parent = buttonFrame,
         BackgroundTransparency = 1,
         Position = UDim2.fromOffset(26, 0),
         Size = UDim2.new(1, -26, 1, 0),
@@ -3325,7 +3441,7 @@ Layout.createTab = function(id, name, iconAsset, order)
     }, false)
 
     local hitbox = create("TextButton", {
-        Parent = buttonShell.outline,
+        Parent = buttonFrame,
         BackgroundTransparency = 1,
         Size = UDim2.new(1, 0, 1, 0),
         Text = "",
@@ -3369,7 +3485,10 @@ Layout.createTab = function(id, name, iconAsset, order)
     end
 
     Tabs[id] = {
-        button = buttonShell,
+        button = {
+            outline = buttonFrame,
+            background = buttonFrame,
+        },
         icon = icon,
         label = label,
         fill = fill,
@@ -3466,33 +3585,47 @@ local function createSubsectionHeader(entry)
         Parent = section.holder,
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
-        Size = UDim2.new(1, -2, 0, 12),
+        Size = UDim2.new(1, 0, 0, 16),
         ZIndex = 20,
     })
 
-    local marker = create("Frame", {
+    local accentLine = create("Frame", {
         Parent = row,
         BorderSizePixel = 0,
         BackgroundColor3 = Theme.accent,
-        Position = UDim2.fromOffset(0, 4),
-        Size = UDim2.fromOffset(5, 5),
+        Position = UDim2.new(0, 0, 0.5, 0),
+        AnchorPoint = Vector2.new(0, 0.5),
+        Size = UDim2.fromOffset(14, 1),
         ZIndex = 21,
     })
-    registerTheme("accent", marker, "BackgroundColor3")
+    registerTheme("accent", accentLine, "BackgroundColor3")
 
     local label = createThemedText(row, {
         Parent = row,
         BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(10, -1),
-        Size = UDim2.new(1, -10, 1, 0),
-        Font = Enum.Font.GothamMedium,
-        Text = string.upper(entry.subsection),
+        Position = UDim2.fromOffset(20, 0),
+        Size = UDim2.new(0, 120, 1, 0),
+        Font = Enum.Font.GothamBold,
+        Text = entry.subsection,
         TextSize = 10,
         TextXAlignment = Enum.TextXAlignment.Left,
         ZIndex = 21,
     }, true)
 
-    label.TextTransparency = 0.1
+    local labelWidth = measureText(entry.subsection, Enum.Font.GothamBold, 10).X
+    label.Size = UDim2.fromOffset(labelWidth + 2, 16)
+    label.TextTransparency = 0.06
+
+    local divider = create("Frame", {
+        Parent = row,
+        BorderSizePixel = 0,
+        BackgroundColor3 = Theme.textDim,
+        BackgroundTransparency = 0.9,
+        Position = UDim2.fromOffset(24 + labelWidth, 8),
+        Size = UDim2.new(1, -(30 + labelWidth), 0, 1),
+        ZIndex = 20,
+    })
+    registerTheme("textDim", divider, "BackgroundColor3")
 end
 
 Render.createToggleRow = function(entry)
@@ -3505,63 +3638,37 @@ Render.createToggleRow = function(entry)
         BackgroundColor3 = Theme.accent,
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
-        Size = UDim2.new(1, -2, 0, 16),
+        Size = UDim2.new(1, 0, 0, 18),
         AutoButtonColor = false,
         Text = "",
         ZIndex = 20,
     })
-
-    local rowShade = applyGradient(row, Color3.fromRGB(255, 255, 255), Color3.fromRGB(167, 167, 167), 90)
+    applyCorner(row, 6)
 
     local leftHolder = create("Frame", {
         Parent = row,
         BackgroundTransparency = 1,
-        Size = hasPicker and UDim2.new(1, -86, 1, 0) or UDim2.new(1, -58, 1, 0),
+        Size = hasPicker and UDim2.new(1, -112, 1, 0) or UDim2.new(1, -84, 1, 0),
         ZIndex = 20,
     })
-
-    create("UIListLayout", {
-        Parent = leftHolder,
-        FillDirection = Enum.FillDirection.Horizontal,
-        Padding = UDim.new(0, 5),
-        VerticalAlignment = Enum.VerticalAlignment.Center,
-        SortOrder = Enum.SortOrder.LayoutOrder,
-    })
-
-    local toggleShell = addShell(leftHolder, UDim2.fromOffset(14, 14), UDim2.fromOffset(0, 0), false, 0, 21)
-    toggleShell.outline.LayoutOrder = 1
-
-    local toggleFill = create("Frame", {
-        Parent = toggleShell.background,
-        BorderSizePixel = 0,
-        BackgroundColor3 = entry.color,
-        Position = UDim2.fromOffset(1, 1),
-        Size = UDim2.new(1, -2, 1, -2),
-        BackgroundTransparency = 1,
-        ZIndex = 24,
-    })
-
-    local toggleFillGradient = applyGradient(toggleFill, Color3.fromRGB(255, 255, 255), Color3.fromRGB(167, 167, 167), 90)
 
     local label = createThemedText(leftHolder, {
         Parent = leftHolder,
         BackgroundTransparency = 1,
-        AutomaticSize = Enum.AutomaticSize.X,
-        Size = UDim2.new(0, 0, 1, 0),
+        Size = UDim2.new(1, 0, 1, 0),
         Font = Enum.Font.GothamMedium,
         Text = entry.name,
         TextSize = 12,
         TextXAlignment = Enum.TextXAlignment.Left,
         ZIndex = 21,
     }, false)
-    label.LayoutOrder = 2
 
     local rightHolder = create("Frame", {
         Parent = row,
         BackgroundTransparency = 1,
-        AnchorPoint = Vector2.new(1, 0),
-        Position = UDim2.new(1, 0, 0, 0),
-        Size = hasPicker and UDim2.new(0, 84, 1, 0) or UDim2.fromOffset(56, 16),
+        AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, 0, 0.5, 0),
+        Size = hasPicker and UDim2.fromOffset(108, 18) or UDim2.fromOffset(80, 18),
         ZIndex = 20,
     })
 
@@ -3584,6 +3691,7 @@ Render.createToggleRow = function(entry)
         TextSize = 11,
         ZIndex = 23,
     }, false)
+    bindText.LayoutOrder = 1
 
     local colorShell
     local colorDisplay
@@ -3591,6 +3699,7 @@ Render.createToggleRow = function(entry)
 
     if hasPicker then
         colorShell = addShell(rightHolder, UDim2.fromOffset(24, 14), UDim2.fromOffset(0, 0), false, 0, 21)
+        colorShell.outline.LayoutOrder = 2
         colorDisplay = create("Frame", {
             Parent = colorShell.background,
             BorderSizePixel = 0,
@@ -3610,15 +3719,16 @@ Render.createToggleRow = function(entry)
         })
     end
 
+    local switch = createSlideSwitch(rightHolder, UDim2.fromOffset(26, 14), UDim2.fromOffset(0, 0), 22)
+    switch.track.LayoutOrder = 3
+
     entry.ui = {
         row = row,
-        rowShade = rowShade,
-        fill = toggleFill,
-        fillGradient = toggleFillGradient,
         label = label,
         bindText = bindText,
         colorDisplay = colorDisplay,
         colorButton = colorButton,
+        switch = switch,
     }
 
     if colorButton then
@@ -3646,7 +3756,7 @@ Render.createToggleRow = function(entry)
 
     row.MouseEnter:Connect(function()
         tween(row, 0.14, {
-            BackgroundTransparency = entry.state and 0.9 or 0.955,
+            BackgroundTransparency = 0.95,
         }, Enum.EasingStyle.Quad)
     end)
 
@@ -4181,10 +4291,11 @@ Layout.selectTab = function(id)
 
     for tabId, tab in pairs(Tabs) do
         local selected = tabId == id
-        tab.fill.BackgroundTransparency = selected and 0 or 1
-        tab.fill.Size = selected and UDim2.new(1, 0, 1, 0) or UDim2.new(0, 0, 1, 0)
-        tab.icon.ImageColor3 = selected and Theme.text or Theme.textDim
-        tab.label.TextColor3 = selected and Theme.text or Theme.text
+        tween(tab.fill, 0.14, {
+            BackgroundTransparency = selected and 0.84 or 1,
+        }, Enum.EasingStyle.Quad)
+        tab.icon.ImageColor3 = selected and Theme.accentGlow or Theme.textDim
+        tab.label.TextColor3 = selected and Theme.text or Theme.textDim
         tab.page.Visible = selected
         tab.page.Position = UDim2.fromOffset(0, 0)
     end
@@ -4427,8 +4538,7 @@ refreshRows = function()
             if entry.mode == "always" then
                 entry.state = true
             end
-            entry.ui.fill.BackgroundColor3 = entry.color
-            entry.ui.fill.BackgroundTransparency = entry.state and 0 or 1
+            updateSlideSwitch(entry.ui.switch, entry.state, entry.color)
             if entry.ui.bindText then
                 entry.ui.bindText.Text = formatToggleBindText(entry)
                 entry.ui.bindText.TextColor3 = MenuState.bindPopupCurrent == entry and entry.color or (entry.mode == "always" and entry.color or Theme.textDim)
@@ -5601,6 +5711,7 @@ local function createWindow(config)
     end
 
     WindowShell.titleLabel.Text = Runtime.title
+    SidebarTitleLabel.Text = Runtime.title
     InfoShell.titleLabel.Text = Runtime.title .. " Info"
     InfoShell.bodyText.Text = Runtime.info
 
