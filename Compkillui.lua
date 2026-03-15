@@ -204,12 +204,62 @@ end
 local ThemeRegistry = {
     outline = {},
     inline = {},
+    high = {},
+    low = {},
     section = {},
     accent = {},
+    accentGlow = {},
     text = {},
     textDim = {},
     contrast = {},
     sectionContrast = {},
+}
+
+local LayoutTokens = {
+    window = {
+        outerPadding = 8,
+        headerHeight = 34,
+        sidebarWidth = 176,
+        footerGap = 8,
+        contentPadding = 14,
+    },
+    sidebar = {
+        paddingX = 14,
+        paddingY = 14,
+        brandHeight = 28,
+        dividerGap = 12,
+        groupGap = 14,
+        groupLabelHeight = 14,
+        itemHeight = 28,
+        itemIndent = 14,
+        itemRadius = 8,
+        itemGap = 4,
+        footerHeight = 18,
+    },
+    content = {
+        headerHeight = 26,
+        columnGap = 10,
+        columnCount = 3,
+    },
+    section = {
+        radius = 10,
+        headerHeight = 26,
+        headerPaddingX = 12,
+        bodyPadding = 10,
+        spacing = 8,
+        subsectionHeight = 18,
+        dividerInset = 10,
+        maxContentHeight = 180,
+    },
+    row = {
+        radius = 8,
+        compactHeight = 28,
+        regularHeight = 38,
+        inputHeight = 22,
+        paddingX = 10,
+        gap = 8,
+        rightGap = 6,
+    },
 }
 
 local function trackRuntimeConnection(connection)
@@ -308,6 +358,18 @@ local function refreshTheme()
         end
     end
 
+    for _, entry in ipairs(ThemeRegistry.high) do
+        if entry.instance.Parent then
+            entry.instance[entry.property] = Theme.high
+        end
+    end
+
+    for _, entry in ipairs(ThemeRegistry.low) do
+        if entry.instance.Parent then
+            entry.instance[entry.property] = Theme.low
+        end
+    end
+
     for _, entry in ipairs(ThemeRegistry.section) do
         if entry.instance.Parent then
             entry.instance[entry.property] = Theme.section
@@ -317,6 +379,12 @@ local function refreshTheme()
     for _, entry in ipairs(ThemeRegistry.accent) do
         if entry.instance.Parent then
             entry.instance[entry.property] = Theme.accent
+        end
+    end
+
+    for _, entry in ipairs(ThemeRegistry.accentGlow) do
+        if entry.instance.Parent then
+            entry.instance[entry.property] = Theme.accentGlow
         end
     end
 
@@ -417,6 +485,88 @@ local function addShell(parent, size, position, accentTop, radius, zindex)
         accent = accent,
         accentHighlight = accentHighlight,
     }
+end
+
+local function createSurface(parent, properties, themeKind, radius, strokeKind, strokeTransparency, strokeThickness)
+    local frame = create("Frame", properties)
+    local resolvedThemeKind = themeKind or "low"
+
+    if Theme[resolvedThemeKind] then
+        frame.BackgroundColor3 = Theme[resolvedThemeKind]
+        if ThemeRegistry[resolvedThemeKind] then
+            registerTheme(resolvedThemeKind, frame, "BackgroundColor3")
+        end
+    end
+
+    if radius and radius > 0 then
+        applyCorner(frame, radius)
+    end
+
+    local stroke
+    if strokeKind then
+        stroke = applyStroke(frame, Theme[strokeKind] or Theme.outline, strokeThickness or 1, strokeTransparency or 0)
+        if ThemeRegistry[strokeKind] then
+            registerTheme(strokeKind, stroke, "Color")
+        end
+    end
+
+    return frame, stroke
+end
+
+local function createControlRowShell(parent, height, interactive, zindex)
+    local className = interactive and "TextButton" or "Frame"
+    local rowProperties = {
+        Parent = parent,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 0, height),
+        ZIndex = zindex or 20,
+    }
+
+    if interactive then
+        rowProperties.AutoButtonColor = false
+        rowProperties.Text = ""
+    end
+
+    local row = create(className, rowProperties)
+
+    local surface = createSurface(row, {
+        Parent = row,
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 0.3,
+        ZIndex = (zindex or 20) + 1,
+    }, "inline", LayoutTokens.row.radius, "outline", 0.62)
+
+    return row, surface
+end
+
+local function setSurfaceHover(surface, active, idleTransparency, hoverTransparency)
+    if not surface then
+        return
+    end
+
+    local idle = idleTransparency ~= nil and idleTransparency or 0.3
+    local hover = hoverTransparency ~= nil and hoverTransparency or math.max(0.06, idle - 0.16)
+
+    tween(surface, 0.14, {
+        BackgroundTransparency = active and hover or idle,
+    }, Enum.EasingStyle.Quad)
+end
+
+local function createRowLabel(parent, text, widthOffset, zindex, dimmed)
+    return createThemedText(parent, {
+        Parent = parent,
+        BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(LayoutTokens.row.paddingX, 0),
+        Size = UDim2.new(1, widthOffset or -(LayoutTokens.row.paddingX * 2), 1, 0),
+        Font = Enum.Font.GothamMedium,
+        Text = text,
+        TextSize = 12,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
+        ZIndex = zindex or 22,
+    }, dimmed == true)
 end
 
 local function createSlideSwitch(parent, size, position, zindex)
@@ -849,6 +999,11 @@ local DropdownPanel = {
     rows = {},
 }
 
+local NavigationState = {
+    selectedItem = nil,
+    buttons = {},
+}
+
 local SettingsPanel = {
     bindListening = false,
 }
@@ -866,6 +1021,7 @@ local TabDefinitions = {}
 local Entries = {}
 local EntryMap = {}
 local CreatedSubsectionHeaders = {}
+local SubsectionHeaders = {}
 local ModeButtons = {}
 
 -- Public API tables
@@ -950,19 +1106,19 @@ end
 WindowShell.header = create("Frame", {
     Parent = WindowShell.background,
     BackgroundTransparency = 1,
-    Size = UDim2.new(1, -12, 0, 20),
-    Position = UDim2.fromOffset(6, 4),
+    Size = UDim2.new(1, -(LayoutTokens.window.outerPadding * 2), 0, LayoutTokens.window.headerHeight),
+    Position = UDim2.fromOffset(LayoutTokens.window.outerPadding, LayoutTokens.window.outerPadding - 1),
     ZIndex = 14,
 })
 
 WindowShell.titleLabel = createThemedText(WindowShell.header, {
     Parent = WindowShell.header,
     BackgroundTransparency = 1,
-    Position = UDim2.fromOffset(2, 0),
-    Size = UDim2.new(0, 220, 1, 0),
+    Position = UDim2.fromOffset(0, 0),
+    Size = UDim2.new(0, 240, 1, 0),
     Font = Enum.Font.GothamBold,
     Text = "NeverPaste",
-    TextSize = 12,
+    TextSize = 13,
     TextXAlignment = Enum.TextXAlignment.Left,
     TextYAlignment = Enum.TextYAlignment.Center,
     ZIndex = 14,
@@ -973,43 +1129,73 @@ WindowShell.titleRightLabel = createThemedText(WindowShell.header, {
     Parent = WindowShell.header,
     BackgroundTransparency = 1,
     AnchorPoint = Vector2.new(1, 0),
-    Position = UDim2.new(1, -24, 0, 0),
-    Size = UDim2.new(0, 216, 1, 0),
+    Position = UDim2.new(1, -96, 0, 0),
+    Size = UDim2.new(0, 240, 1, 0),
     Font = Enum.Font.GothamMedium,
     Text = "menu bind: " .. bindToText(MenuState.toggleBind),
-    TextSize = 12,
+    TextSize = 11,
     TextXAlignment = Enum.TextXAlignment.Right,
     ZIndex = 14,
 }, true)
 
-WindowShell.settingsButton = create("ImageButton", {
+local HeaderActionHolder = create("Frame", {
     Parent = WindowShell.header,
     AnchorPoint = Vector2.new(1, 0.5),
     Position = UDim2.new(1, 0, 0.5, 0),
-    Size = UDim2.fromOffset(16, 16),
+    Size = UDim2.fromOffset(88, 18),
+    BackgroundTransparency = 1,
+    ZIndex = 15,
+})
+
+create("UIListLayout", {
+    Parent = HeaderActionHolder,
+    FillDirection = Enum.FillDirection.Horizontal,
+    HorizontalAlignment = Enum.HorizontalAlignment.Right,
+    VerticalAlignment = Enum.VerticalAlignment.Center,
+    Padding = UDim.new(0, 8),
+    SortOrder = Enum.SortOrder.LayoutOrder,
+})
+
+local function createHeaderIconButton(parent, image, order)
+    local button = create("ImageButton", {
+        Parent = parent,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Size = UDim2.fromOffset(16, 16),
+        Image = image,
+        ImageColor3 = Theme.textDim,
+        AutoButtonColor = false,
+        LayoutOrder = order,
+        ZIndex = 15,
+    })
+    registerTheme("textDim", button, "ImageColor3")
+    return button
+end
+
+local ConfigButton = createHeaderIconButton(HeaderActionHolder, IconAssets.file, 1)
+local SearchButton = createHeaderIconButton(HeaderActionHolder, IconAssets.search, 2)
+local InfoButton = createHeaderIconButton(HeaderActionHolder, IconAssets.info, 3)
+WindowShell.settingsButton = create("ImageButton", {
+    Parent = HeaderActionHolder,
     BackgroundTransparency = 1,
     BorderSizePixel = 0,
+    Size = UDim2.fromOffset(16, 16),
     Image = IconAssets.settings,
     ImageColor3 = Theme.textDim,
     AutoButtonColor = false,
+    LayoutOrder = 4,
     ZIndex = 15,
 })
 registerTheme("textDim", WindowShell.settingsButton, "ImageColor3")
 
-local SidebarPanel = create("Frame", {
+local SidebarPanel = createSurface(WindowShell.background, {
     Parent = WindowShell.background,
     BorderSizePixel = 0,
-    BackgroundColor3 = Theme.section,
-    BackgroundTransparency = 0.9,
-    Position = UDim2.fromOffset(6, 22),
-    Size = UDim2.new(0, 110, 1, -50),
+    BackgroundTransparency = 0.16,
+    Position = UDim2.fromOffset(LayoutTokens.window.outerPadding, LayoutTokens.window.headerHeight + LayoutTokens.window.outerPadding + 1),
+    Size = UDim2.new(0, LayoutTokens.window.sidebarWidth, 1, -(LayoutTokens.window.headerHeight + (LayoutTokens.window.outerPadding * 2) + 6)),
     ZIndex = 13,
-})
-registerTheme("section", SidebarPanel, "BackgroundColor3")
-applyCorner(SidebarPanel, 10)
-
-local SidebarGradient = applyGradient(SidebarPanel, Theme.sectionHigh, Theme.sectionLow, 90)
-registerTheme("sectionContrast", SidebarGradient, "Color")
+}, "low", 14, "outline", 0.54)
 
 local SidebarDivider = create("Frame", {
     Parent = SidebarPanel,
@@ -1018,7 +1204,7 @@ local SidebarDivider = create("Frame", {
     Size = UDim2.new(0, 1, 1, 0),
     BorderSizePixel = 0,
     BackgroundColor3 = Theme.textDim,
-    BackgroundTransparency = 0.82,
+    BackgroundTransparency = 0.88,
     ZIndex = 14,
 })
 registerTheme("textDim", SidebarDivider, "BackgroundColor3")
@@ -1026,12 +1212,13 @@ registerTheme("textDim", SidebarDivider, "BackgroundColor3")
 local SidebarTitleLabel = createThemedText(SidebarPanel, {
     Parent = SidebarPanel,
     BackgroundTransparency = 1,
-    Position = UDim2.fromOffset(10, 8),
-    Size = UDim2.new(1, -20, 0, 18),
+    Position = UDim2.fromOffset(LayoutTokens.sidebar.paddingX, LayoutTokens.sidebar.paddingY - 1),
+    Size = UDim2.new(1, -(LayoutTokens.sidebar.paddingX * 2), 0, LayoutTokens.sidebar.brandHeight),
     Font = Enum.Font.GothamBold,
     Text = "NeverPaste",
-    TextSize = 14,
+    TextSize = 18,
     TextXAlignment = Enum.TextXAlignment.Left,
+    TextYAlignment = Enum.TextYAlignment.Center,
     ZIndex = 15,
 }, false)
 
@@ -1039,91 +1226,85 @@ local SidebarTitleDivider = create("Frame", {
     Parent = SidebarPanel,
     BorderSizePixel = 0,
     BackgroundColor3 = Theme.textDim,
-    BackgroundTransparency = 0.86,
-    Position = UDim2.fromOffset(10, 31),
-    Size = UDim2.new(1, -20, 0, 1),
+    BackgroundTransparency = 0.9,
+    Position = UDim2.fromOffset(LayoutTokens.sidebar.paddingX, LayoutTokens.sidebar.paddingY + LayoutTokens.sidebar.brandHeight + 4),
+    Size = UDim2.new(1, -(LayoutTokens.sidebar.paddingX * 2), 0, 1),
     ZIndex = 14,
 })
 registerTheme("textDim", SidebarTitleDivider, "BackgroundColor3")
 
-local TabHolder = create("Frame", {
+local SidebarFooter = create("Frame", {
     Parent = SidebarPanel,
     BackgroundTransparency = 1,
-    Position = UDim2.fromOffset(8, 38),
-    Size = UDim2.new(1, -16, 1, -46),
+    AnchorPoint = Vector2.new(0, 1),
+    Position = UDim2.new(0, LayoutTokens.sidebar.paddingX, 1, -LayoutTokens.sidebar.paddingY),
+    Size = UDim2.new(1, -(LayoutTokens.sidebar.paddingX * 2), 0, LayoutTokens.sidebar.footerHeight),
     ZIndex = 14,
 })
 
-create("UIListLayout", {
+local SidebarFooterLabel = createThemedText(SidebarFooter, {
+    Parent = SidebarFooter,
+    BackgroundTransparency = 1,
+    Size = UDim2.new(1, 0, 1, 0),
+    Font = Enum.Font.GothamMedium,
+    Text = "structured ui library",
+    TextSize = 10,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextYAlignment = Enum.TextYAlignment.Center,
+    ZIndex = 15,
+}, true)
+SidebarFooterLabel.TextTransparency = 0.12
+
+local TabHolder = create("ScrollingFrame", {
+    Parent = SidebarPanel,
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0,
+    Position = UDim2.fromOffset(LayoutTokens.sidebar.paddingX, LayoutTokens.sidebar.paddingY + LayoutTokens.sidebar.brandHeight + LayoutTokens.sidebar.dividerGap),
+    Size = UDim2.new(1, -(LayoutTokens.sidebar.paddingX * 2), 1, -(LayoutTokens.sidebar.paddingY + LayoutTokens.sidebar.brandHeight + LayoutTokens.sidebar.dividerGap + LayoutTokens.sidebar.footerHeight + 14)),
+    CanvasSize = UDim2.fromOffset(0, 0),
+    ScrollBarImageColor3 = Theme.accent,
+    ScrollBarThickness = 3,
+    TopImage = "",
+    BottomImage = "",
+    MidImage = "",
+    ZIndex = 14,
+})
+registerTheme("accent", TabHolder, "ScrollBarImageColor3")
+
+local TabHolderLayout = create("UIListLayout", {
     Parent = TabHolder,
     FillDirection = Enum.FillDirection.Vertical,
-    Padding = UDim.new(0, 4),
+    Padding = UDim.new(0, LayoutTokens.sidebar.groupGap),
     SortOrder = Enum.SortOrder.LayoutOrder,
 })
 
-local ContentShell = addShell(WindowShell.background, UDim2.new(1, -122, 1, -50), UDim2.fromOffset(120, 22), false, 0, 12)
+TabHolderLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    TabHolder.CanvasSize = UDim2.fromOffset(0, TabHolderLayout.AbsoluteContentSize.Y)
+end)
+
+local contentX = LayoutTokens.window.outerPadding + LayoutTokens.window.sidebarWidth + LayoutTokens.window.footerGap
+local ContentShellFrame, ContentShellStroke = createSurface(WindowShell.background, {
+    Parent = WindowShell.background,
+    BorderSizePixel = 0,
+    Position = UDim2.fromOffset(contentX, LayoutTokens.window.headerHeight + LayoutTokens.window.outerPadding + 1),
+    Size = UDim2.new(1, -(contentX + LayoutTokens.window.outerPadding), 1, -(LayoutTokens.window.headerHeight + (LayoutTokens.window.outerPadding * 2) + 6)),
+    BackgroundTransparency = 0.04,
+    ZIndex = 12,
+}, "low", 14, "outline", 0.28)
+local ContentShell = {
+    outline = ContentShellFrame,
+    background = ContentShellFrame,
+    stroke = ContentShellStroke,
+}
 
 create("UIPadding", {
     Parent = ContentShell.background,
-    PaddingTop = UDim.new(0, 4),
-    PaddingBottom = UDim.new(0, 4),
-    PaddingLeft = UDim.new(0, 4),
-    PaddingRight = UDim.new(0, 4),
+    PaddingTop = UDim.new(0, LayoutTokens.window.contentPadding),
+    PaddingBottom = UDim.new(0, LayoutTokens.window.contentPadding),
+    PaddingLeft = UDim.new(0, LayoutTokens.window.contentPadding),
+    PaddingRight = UDim.new(0, LayoutTokens.window.contentPadding),
 })
 ContentShell.background.ClipsDescendants = true
-
-local ConfigButton
-local SearchButton
-local InfoButton
-do
-    local bottomBar = create("Frame", {
-        Parent = WindowShell.background,
-        BackgroundTransparency = 1,
-        Position = UDim2.new(0, 6, 1, -22),
-        Size = UDim2.new(1, -12, 0, 16),
-        ZIndex = 14,
-    })
-
-    ConfigButton = create("ImageButton", {
-        Parent = bottomBar,
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        Position = UDim2.fromOffset(0, 0),
-        Size = UDim2.fromOffset(16, 16),
-        Image = IconAssets.file,
-        ImageColor3 = Theme.textDim,
-        AutoButtonColor = false,
-        ZIndex = 15,
-    })
-    registerTheme("textDim", ConfigButton, "ImageColor3")
-
-    SearchButton = create("ImageButton", {
-        Parent = bottomBar,
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        Position = UDim2.fromOffset(22, 0),
-        Size = UDim2.fromOffset(16, 16),
-        Image = IconAssets.search,
-        ImageColor3 = Theme.textDim,
-        AutoButtonColor = false,
-        ZIndex = 15,
-    })
-    registerTheme("textDim", SearchButton, "ImageColor3")
-
-    InfoButton = create("ImageButton", {
-        Parent = bottomBar,
-        AnchorPoint = Vector2.new(1, 0),
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        Position = UDim2.new(1, 0, 0, 0),
-        Size = UDim2.fromOffset(16, 16),
-        Image = IconAssets.info,
-        ImageColor3 = Theme.textDim,
-        AutoButtonColor = false,
-        ZIndex = 15,
-    })
-    registerTheme("textDim", InfoButton, "ImageColor3")
-end
 
 local SearchShell = addShell(WindowShell.background, UDim2.fromOffset(300, 290), UDim2.new(0, 8, 1, -320), false, 0, 40)
 SearchShell.outline.Visible = false
@@ -2692,28 +2873,42 @@ Panels.refreshDropdownOverlay = function()
         for _, option in ipairs(openEntry.values or {}) do
             local row = create("TextButton", {
                 Parent = DropdownPanel.list,
-                BackgroundColor3 = Theme.accent,
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0,
-                Size = UDim2.new(1, 0, 0, 16),
+                Size = UDim2.new(1, 0, 0, 22),
                 Text = "",
                 AutoButtonColor = false,
                 ZIndex = 50,
             })
 
-            applyGradient(row, Color3.fromRGB(255, 255, 255), Color3.fromRGB(167, 167, 167), 90)
-
-            local label = createThemedText(row, {
+            local surface = createSurface(row, {
                 Parent = row,
+                BorderSizePixel = 0,
+                Size = UDim2.new(1, 0, 1, 0),
+                BackgroundTransparency = 0.18,
+                ZIndex = 50,
+            }, "inline", 6, "outline", 0.6)
+
+            local label = createThemedText(surface, {
+                Parent = surface,
                 BackgroundTransparency = 1,
-                Position = UDim2.fromOffset(4, 0),
-                Size = UDim2.new(1, -8, 1, 0),
+                Position = UDim2.fromOffset(8, 0),
+                Size = UDim2.new(1, -16, 1, 0),
                 Font = Enum.Font.GothamMedium,
                 Text = tostring(option),
                 TextSize = 11,
                 TextXAlignment = Enum.TextXAlignment.Left,
+                TextYAlignment = Enum.TextYAlignment.Center,
                 ZIndex = 51,
             }, true)
+
+            row.MouseEnter:Connect(function()
+                setSurfaceHover(surface, true, 0.18, 0.08)
+            end)
+
+            row.MouseLeave:Connect(function()
+                setSurfaceHover(surface, false, 0.18, 0.08)
+            end)
 
             row.MouseButton1Click:Connect(function()
                 if openEntry.multi then
@@ -2738,7 +2933,7 @@ Panels.refreshDropdownOverlay = function()
     end
 
     local optionCount = #(openEntry.values or {})
-    local contentHeight = optionCount > 0 and ((optionCount * 16) + ((optionCount - 1) * 2)) or 0
+    local contentHeight = optionCount > 0 and ((optionCount * 22) + ((optionCount - 1) * 2)) or 0
     local width = math.max(openEntry.ui.button.AbsoluteSize.X, 132)
     local shellWidth = width + 10
     local height = math.min(contentHeight + 8, 132)
@@ -2895,7 +3090,16 @@ Panels.rebuildSearchResults = function(query)
             end)
 
             result.MouseButton1Click:Connect(function()
-                Layout.selectTab(entry.tab)
+                local targetItemId
+                if entry.subsection and entry.subsection ~= "" then
+                    targetItemId = string.format("%s::subsection::%s::%s", entry.tab, entry.section, entry.subsection)
+                elseif entry.section and entry.section ~= "" then
+                    targetItemId = string.format("%s::section::%s", entry.tab, entry.section)
+                end
+
+                if not (targetItemId and Layout.selectNavigationItem(targetItemId)) then
+                    Layout.selectTab(entry.tab)
+                end
                 Panels.closeSearch()
             end)
         end
@@ -3046,7 +3250,7 @@ local function getSectionFillHeight(section)
     end
 
     local relativeTop = section.outline.AbsolutePosition.Y - section.column.AbsolutePosition.Y
-    local availableHeight = columnHeight - relativeTop - ((section.headerHeight or 24) + 5)
+    local availableHeight = columnHeight - relativeTop - ((section.headerHeight or LayoutTokens.section.headerHeight) + (section.bottomPadding or LayoutTokens.section.bodyPadding))
     return math.max(0, availableHeight)
 end
 
@@ -3063,7 +3267,7 @@ Layout.updateShellSize = function(section, fillToBottom)
     end
 
     if visibleHeight == nil then
-        visibleHeight = math.min(contentHeight, section.maxContentHeight or 156)
+        visibleHeight = math.min(contentHeight, section.maxContentHeight or LayoutTokens.section.maxContentHeight)
     end
 
     local needsScroll = contentHeight > visibleHeight
@@ -3071,7 +3275,7 @@ Layout.updateShellSize = function(section, fillToBottom)
     section.holder.Size = UDim2.new(1, needsScroll and -4 or 0, 0, visibleHeight)
     section.holder.CanvasSize = UDim2.fromOffset(0, contentHeight > 0 and (contentHeight + 2) or 0)
     section.holder.ScrollBarThickness = needsScroll and 4 or 0
-    section.outline.Size = UDim2.new(1, 0, 0, visibleHeight + (section.headerHeight or 24))
+    section.outline.Size = UDim2.new(1, 0, 0, visibleHeight + (section.headerHeight or LayoutTokens.section.headerHeight) + (section.bottomPadding or LayoutTokens.section.bodyPadding))
 end
 
 Layout.relayoutSectionColumn = function(tabId, columnIndex)
@@ -3284,6 +3488,313 @@ end
 
 do
 
+local function getTabDefinition(tabId)
+    for _, definition in ipairs(TabDefinitions) do
+        if definition.id == tabId then
+            return definition
+        end
+    end
+end
+
+local function getSectionMeta(definition, sectionName, columnIndex)
+    if not definition.sectionMeta[sectionName] then
+        definition.sectionMeta[sectionName] = {
+            name = sectionName,
+            columnIndex = columnIndex,
+            order = #definition.sectionOrder + 1,
+            subsections = {},
+            subsectionLookup = {},
+        }
+        definition.sectionOrder[#definition.sectionOrder + 1] = definition.sectionMeta[sectionName]
+    end
+
+    return definition.sectionMeta[sectionName]
+end
+
+local function getNavigationItems(definition)
+    local items = {}
+
+    for _, sectionMeta in ipairs(definition.sectionOrder or {}) do
+        if #sectionMeta.subsections > 0 then
+            for _, subsectionMeta in ipairs(sectionMeta.subsections) do
+                items[#items + 1] = {
+                    id = subsectionMeta.id,
+                    tabId = definition.id,
+                    sectionName = sectionMeta.name,
+                    subsectionName = subsectionMeta.name,
+                    label = subsectionMeta.name,
+                    kind = "subsection",
+                }
+            end
+        else
+            items[#items + 1] = {
+                id = string.format("%s::section::%s", definition.id, sectionMeta.name),
+                tabId = definition.id,
+                sectionName = sectionMeta.name,
+                subsectionName = nil,
+                label = sectionMeta.name,
+                kind = "section",
+            }
+        end
+    end
+
+    if #items == 0 then
+        items[1] = {
+            id = string.format("%s::root", definition.id),
+            tabId = definition.id,
+            sectionName = nil,
+            subsectionName = nil,
+            label = definition.name,
+            kind = "root",
+        }
+    end
+
+    return items
+end
+
+local function getNavigationItemById(itemId)
+    for _, definition in ipairs(TabDefinitions) do
+        for _, item in ipairs(getNavigationItems(definition)) do
+            if item.id == itemId then
+                return item
+            end
+        end
+    end
+end
+
+local function getDefaultNavigationItemId(tabId)
+    local definition = getTabDefinition(tabId)
+    if not definition then
+        return nil
+    end
+
+    local items = getNavigationItems(definition)
+    return items[1] and items[1].id or nil
+end
+
+local function updateSidebarButtons()
+    for _, buttonData in pairs(NavigationState.buttons) do
+        if buttonData.groupLabel then
+            local isActiveGroup = buttonData.tabId == CurrentTab
+            buttonData.groupLabel.TextColor3 = isActiveGroup and Theme.text or Theme.textDim
+        else
+            local selected = NavigationState.selectedItem == buttonData.id
+            buttonData.surface.BackgroundTransparency = selected and 0.08 or 1
+            buttonData.indicator.BackgroundTransparency = selected and 0 or 0.72
+            buttonData.indicator.Size = selected and UDim2.fromOffset(4, 14) or UDim2.fromOffset(4, 4)
+            buttonData.label.TextColor3 = selected and Theme.text or Theme.textDim
+        end
+    end
+end
+
+local function refreshSectionHighlights()
+    local selectedItem = getNavigationItemById(NavigationState.selectedItem)
+
+    for _, section in pairs(Sections) do
+        local sectionSelected = selectedItem
+            and selectedItem.tabId == section.tabId
+            and (selectedItem.sectionName == nil or selectedItem.sectionName == section.name)
+
+        if section.surface then
+            tween(section.surface, 0.16, {
+                BackgroundTransparency = sectionSelected and 0.02 or 0.12,
+            }, Enum.EasingStyle.Quad)
+        end
+
+        if section.stroke then
+            section.stroke.Transparency = sectionSelected and 0.18 or 0.46
+        end
+
+        if section.headerAccent then
+            section.headerAccent.BackgroundTransparency = sectionSelected and 0 or 0.66
+        end
+
+        if section.title then
+            section.title.TextColor3 = sectionSelected and Theme.text or Theme.textDim
+        end
+    end
+
+    for key, header in pairs(SubsectionHeaders) do
+        local subsectionSelected = selectedItem
+            and selectedItem.tabId == header.tabId
+            and selectedItem.sectionName == header.sectionName
+            and selectedItem.subsectionName == header.subsectionName
+
+        if header.label then
+            header.label.TextColor3 = subsectionSelected and Theme.text or Theme.textDim
+        end
+
+        if header.accent then
+            header.accent.BackgroundTransparency = subsectionSelected and 0 or 0.76
+        end
+
+        if header.divider then
+            header.divider.BackgroundTransparency = subsectionSelected and 0.84 or 0.92
+        end
+    end
+end
+Layout.refreshSectionHighlights = refreshSectionHighlights
+
+Layout.refreshSidebarNavigation = function()
+    for _, child in ipairs(TabHolder:GetChildren()) do
+        if not child:IsA("UIListLayout") then
+            child:Destroy()
+        end
+    end
+
+    table.clear(NavigationState.buttons)
+
+    for _, definition in ipairs(TabDefinitions) do
+        local groupFrame = create("Frame", {
+            Parent = TabHolder,
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 14),
+            LayoutOrder = definition.order,
+            ZIndex = 15,
+        })
+
+        local groupLayout = create("UIListLayout", {
+            Parent = groupFrame,
+            FillDirection = Enum.FillDirection.Vertical,
+            Padding = UDim.new(0, LayoutTokens.sidebar.itemGap),
+            SortOrder = Enum.SortOrder.LayoutOrder,
+        })
+
+        local groupLabel = createThemedText(groupFrame, {
+            Parent = groupFrame,
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, LayoutTokens.sidebar.groupLabelHeight),
+            Font = Enum.Font.GothamBold,
+            Text = definition.name,
+            TextSize = 11,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextYAlignment = Enum.TextYAlignment.Center,
+            ZIndex = 16,
+        }, true)
+        groupLabel.LayoutOrder = 1
+        groupLabel.TextTransparency = 0.06
+
+        NavigationState.buttons[string.format("%s::group", definition.id)] = {
+            tabId = definition.id,
+            groupLabel = groupLabel,
+        }
+
+        local items = getNavigationItems(definition)
+        for index, item in ipairs(items) do
+            local button, surface = createControlRowShell(groupFrame, LayoutTokens.sidebar.itemHeight, true, 16)
+            button.LayoutOrder = index + 1
+            surface.BackgroundTransparency = 1
+            surface.Size = UDim2.new(1, -LayoutTokens.sidebar.itemIndent, 1, 0)
+            surface.Position = UDim2.fromOffset(LayoutTokens.sidebar.itemIndent, 0)
+
+            local indicator = create("Frame", {
+                Parent = surface,
+                AnchorPoint = Vector2.new(0, 0.5),
+                Position = UDim2.new(0, 8, 0.5, 0),
+                Size = UDim2.fromOffset(4, 4),
+                BorderSizePixel = 0,
+                BackgroundColor3 = Theme.accent,
+                BackgroundTransparency = 0.72,
+                ZIndex = 18,
+            })
+            registerTheme("accent", indicator, "BackgroundColor3")
+            applyCorner(indicator, 2)
+
+            local label = createThemedText(surface, {
+                Parent = surface,
+                BackgroundTransparency = 1,
+                Position = UDim2.fromOffset(20, 0),
+                Size = UDim2.new(1, -28, 1, 0),
+                Font = Enum.Font.GothamMedium,
+                Text = item.label,
+                TextSize = 12,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextYAlignment = Enum.TextYAlignment.Center,
+                ZIndex = 18,
+            }, true)
+
+            button.MouseEnter:Connect(function()
+                if NavigationState.selectedItem ~= item.id then
+                    setSurfaceHover(surface, true, 1, 0.14)
+                end
+            end)
+
+            button.MouseLeave:Connect(function()
+                if NavigationState.selectedItem ~= item.id then
+                    setSurfaceHover(surface, false, 1, 0.14)
+                end
+            end)
+
+            button.MouseButton1Click:Connect(function()
+                Layout.selectNavigationItem(item.id)
+            end)
+
+            NavigationState.buttons[item.id] = {
+                id = item.id,
+                tabId = definition.id,
+                surface = surface,
+                indicator = indicator,
+                label = label,
+            }
+        end
+
+        groupFrame.Size = UDim2.new(1, 0, 0, groupLayout.AbsoluteContentSize.Y)
+        groupLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            groupFrame.Size = UDim2.new(1, 0, 0, groupLayout.AbsoluteContentSize.Y)
+        end)
+    end
+
+    if not NavigationState.selectedItem or not getNavigationItemById(NavigationState.selectedItem) then
+        NavigationState.selectedItem = getDefaultNavigationItemId(CurrentTab or DefaultTabId)
+    end
+
+    updateSidebarButtons()
+    refreshSectionHighlights()
+end
+
+Layout.registerSectionNavigation = function(tabId, sectionName, columnIndex)
+    local definition = getTabDefinition(tabId)
+    if not definition then
+        return
+    end
+
+    getSectionMeta(definition, sectionName, columnIndex)
+    Layout.refreshSidebarNavigation()
+end
+
+Layout.registerSubsectionNavigation = function(tabId, sectionName, subsectionName, columnIndex)
+    local definition = getTabDefinition(tabId)
+    if not definition then
+        return
+    end
+
+    local sectionMeta = getSectionMeta(definition, sectionName, columnIndex)
+    if not sectionMeta.subsectionLookup[subsectionName] then
+        local subsectionMeta = {
+            id = string.format("%s::subsection::%s::%s", tabId, sectionName, subsectionName),
+            name = subsectionName,
+            order = #sectionMeta.subsections + 1,
+        }
+        sectionMeta.subsectionLookup[subsectionName] = subsectionMeta
+        sectionMeta.subsections[#sectionMeta.subsections + 1] = subsectionMeta
+    end
+
+    Layout.refreshSidebarNavigation()
+end
+
+Layout.selectNavigationItem = function(itemId)
+    local item = getNavigationItemById(itemId)
+    if not item then
+        return false
+    end
+
+    NavigationState.selectedItem = itemId
+    Layout.selectTab(item.tabId, true)
+    updateSidebarButtons()
+    refreshSectionHighlights()
+    return true
+end
+
 Layout.getSection = function(tabId, columnIndex, name)
     local key = tabId .. "_" .. columnIndex .. "_" .. name
     if Sections[key] then
@@ -3300,42 +3811,57 @@ Layout.getSection = function(tabId, columnIndex, name)
         end
     end
 
-    local shell = addShell(column, UDim2.new(1, 0, 0, 24), UDim2.fromOffset(0, 0), false, 0, 16)
-    shell.outline.AutomaticSize = Enum.AutomaticSize.None
-    shell.outline.LayoutOrder = layoutOrder
-    shell.outline.BackgroundTransparency = 1
-    shell.inline.BackgroundTransparency = 1
-    shell.background.BackgroundTransparency = 1
+    local outline, stroke = createSurface(column, {
+        Parent = column,
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 0, LayoutTokens.section.headerHeight),
+        BackgroundTransparency = 0.12,
+        LayoutOrder = layoutOrder,
+        ZIndex = 17,
+    }, "inline", LayoutTokens.section.radius, "outline", 0.46)
 
-    local title = createThemedText(shell.background, {
-        Parent = shell.background,
+    local headerAccent = create("Frame", {
+        Parent = outline,
+        BorderSizePixel = 0,
+        BackgroundColor3 = Theme.accent,
+        BackgroundTransparency = 0.66,
+        Position = UDim2.fromOffset(LayoutTokens.section.headerPaddingX, 10),
+        Size = UDim2.fromOffset(16, 2),
+        ZIndex = 18,
+    })
+    registerTheme("accent", headerAccent, "BackgroundColor3")
+    applyCorner(headerAccent, 2)
+
+    local title = createThemedText(outline, {
+        Parent = outline,
         BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(0, 0),
-        Size = UDim2.new(1, 0, 0, 15),
+        Position = UDim2.fromOffset(LayoutTokens.section.headerPaddingX, 14),
+        Size = UDim2.new(1, -(LayoutTokens.section.headerPaddingX * 2), 0, 14),
         Font = Enum.Font.GothamBold,
         Text = name,
         TextSize = 11,
         TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 21,
-    }, false)
+        TextYAlignment = Enum.TextYAlignment.Center,
+        ZIndex = 19,
+    }, true)
 
     local divider = create("Frame", {
-        Parent = shell.background,
+        Parent = outline,
         BorderSizePixel = 0,
         BackgroundColor3 = Theme.textDim,
-        BackgroundTransparency = 0.88,
-        Position = UDim2.fromOffset(0, 18),
-        Size = UDim2.new(1, 0, 0, 1),
-        ZIndex = 20,
+        BackgroundTransparency = 0.9,
+        Position = UDim2.fromOffset(LayoutTokens.section.dividerInset, LayoutTokens.section.headerHeight + 5),
+        Size = UDim2.new(1, -(LayoutTokens.section.dividerInset * 2), 0, 1),
+        ZIndex = 18,
     })
     registerTheme("textDim", divider, "BackgroundColor3")
 
     local holder = create("ScrollingFrame", {
-        Parent = shell.background,
+        Parent = outline,
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
-        Position = UDim2.fromOffset(0, 24),
-        Size = UDim2.new(1, 0, 0, 0),
+        Position = UDim2.fromOffset(LayoutTokens.section.bodyPadding, LayoutTokens.section.headerHeight + 10),
+        Size = UDim2.new(1, -(LayoutTokens.section.bodyPadding * 2), 0, 0),
         CanvasSize = UDim2.fromOffset(0, 0),
         ScrollBarImageColor3 = Theme.accent,
         ScrollBarThickness = 0,
@@ -3343,14 +3869,14 @@ Layout.getSection = function(tabId, columnIndex, name)
         TopImage = "",
         BottomImage = "",
         MidImage = "",
-        ZIndex = 20,
+        ZIndex = 18,
     })
     registerTheme("accent", holder, "ScrollBarImageColor3")
 
     local layout = create("UIListLayout", {
         Parent = holder,
         FillDirection = Enum.FillDirection.Vertical,
-        Padding = UDim.new(0, 7),
+        Padding = UDim.new(0, LayoutTokens.section.spacing),
         SortOrder = Enum.SortOrder.LayoutOrder,
     })
 
@@ -3360,17 +3886,22 @@ Layout.getSection = function(tabId, columnIndex, name)
 
     local section = {
         tabId = tabId,
+        name = name,
         columnIndex = columnIndex,
         column = column,
         layoutOrder = layoutOrder,
-        outline = shell.outline,
-        background = shell.background,
+        outline = outline,
+        surface = outline,
+        stroke = stroke,
         holder = holder,
         layout = layout,
         title = title,
         divider = divider,
-        headerHeight = 24,
-        maxContentHeight = 156,
+        headerAccent = headerAccent,
+        headerHeight = LayoutTokens.section.headerHeight + 10,
+        contentInset = LayoutTokens.section.bodyPadding,
+        bottomPadding = LayoutTokens.section.bodyPadding,
+        maxContentHeight = LayoutTokens.section.maxContentHeight,
         fixedHeight = false,
     }
 
@@ -3383,71 +3914,13 @@ Layout.getSection = function(tabId, columnIndex, name)
 end
 
 Layout.reflowTabButtons = function()
-    for _, definition in ipairs(TabDefinitions) do
-        local tab = Tabs[definition.id]
-        if tab and tab.button and tab.button.outline then
-            tab.button.outline.Size = UDim2.new(1, 0, 0, 28)
-        end
-    end
+    Layout.refreshSidebarNavigation()
 end
 
 Layout.createTab = function(id, name, iconAsset, order)
-    local columnGap = 6
-    local columnCount = 3
+    local columnGap = LayoutTokens.content.columnGap
+    local columnCount = LayoutTokens.content.columnCount
     local columnWidthOffset = -math.floor((columnGap * (columnCount - 1)) / columnCount + 0.5)
-    local buttonFrame = create("Frame", {
-        Parent = TabHolder,
-        BorderSizePixel = 0,
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 0, 28),
-        ZIndex = 16,
-    })
-    buttonFrame.LayoutOrder = order
-
-    local fill = create("Frame", {
-        Parent = buttonFrame,
-        BorderSizePixel = 0,
-        BackgroundColor3 = Theme.accent,
-        Position = UDim2.fromOffset(0, 0),
-        Size = UDim2.new(1, 0, 1, 0),
-        BackgroundTransparency = 1,
-        ZIndex = 19,
-    })
-    registerTheme("accent", fill, "BackgroundColor3")
-    applyCorner(fill, 7)
-
-    local icon = create("ImageLabel", {
-        Parent = buttonFrame,
-        BackgroundTransparency = 1,
-        AnchorPoint = Vector2.new(0, 0.5),
-        Position = UDim2.new(0, 8, 0.5, 0),
-        Size = UDim2.fromOffset(14, 14),
-        Image = iconAsset,
-        ImageColor3 = Theme.textDim,
-        ZIndex = 20,
-    })
-    registerTheme("textDim", icon, "ImageColor3")
-
-    local label = createThemedText(buttonFrame, {
-        Parent = buttonFrame,
-        BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(26, 0),
-        Size = UDim2.new(1, -26, 1, 0),
-        Font = Enum.Font.GothamMedium,
-        Text = name,
-        TextSize = 12,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 20,
-    }, false)
-
-    local hitbox = create("TextButton", {
-        Parent = buttonFrame,
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 1, 0),
-        Text = "",
-        AutoButtonColor = false,
-        ZIndex = 21,
-    })
 
     local page = create("Frame", {
         Parent = ContentShell.background,
@@ -3457,12 +3930,65 @@ Layout.createTab = function(id, name, iconAsset, order)
         ZIndex = 16,
     })
 
+    local pageHeader = create("Frame", {
+        Parent = page,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 0, LayoutTokens.content.headerHeight),
+        ZIndex = 17,
+    })
+
+    local pageTitle = createThemedText(pageHeader, {
+        Parent = pageHeader,
+        BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(0, 0),
+        Size = UDim2.new(1, -24, 1, 0),
+        Font = Enum.Font.GothamBold,
+        Text = name,
+        TextSize = 14,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
+        ZIndex = 18,
+    }, false)
+
+    local pageSubtitle = createThemedText(pageHeader, {
+        Parent = pageHeader,
+        BackgroundTransparency = 1,
+        AnchorPoint = Vector2.new(1, 0),
+        Position = UDim2.new(1, 0, 0, 0),
+        Size = UDim2.fromOffset(180, LayoutTokens.content.headerHeight),
+        Font = Enum.Font.GothamMedium,
+        Text = "structured layout",
+        TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Right,
+        TextYAlignment = Enum.TextYAlignment.Center,
+        ZIndex = 18,
+    }, true)
+
+    local headerDivider = create("Frame", {
+        Parent = page,
+        BorderSizePixel = 0,
+        BackgroundColor3 = Theme.textDim,
+        BackgroundTransparency = 0.9,
+        Position = UDim2.fromOffset(0, LayoutTokens.content.headerHeight + 2),
+        Size = UDim2.new(1, 0, 0, 1),
+        ZIndex = 17,
+    })
+    registerTheme("textDim", headerDivider, "BackgroundColor3")
+
+    local body = create("Frame", {
+        Parent = page,
+        BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(0, LayoutTokens.content.headerHeight + 10),
+        Size = UDim2.new(1, 0, 1, -(LayoutTokens.content.headerHeight + 10)),
+        ZIndex = 16,
+    })
+
     local columns = {}
     for index = 1, columnCount do
         local columnIndex = index
         local columnOffset = math.floor((((index - 1) * columnGap) / columnCount) + 0.5)
         local column = create("Frame", {
-            Parent = page,
+            Parent = body,
             BackgroundTransparency = 1,
             Position = UDim2.new((columnIndex - 1) / columnCount, columnOffset, 0, 0),
             Size = UDim2.new(1 / columnCount, columnWidthOffset, 1, 0),
@@ -3470,10 +3996,10 @@ Layout.createTab = function(id, name, iconAsset, order)
             ZIndex = 16,
         })
 
-        local columnLayout = create("UIListLayout", {
+        create("UIListLayout", {
             Parent = column,
             FillDirection = Enum.FillDirection.Vertical,
-            Padding = UDim.new(0, 4),
+            Padding = UDim.new(0, 8),
             SortOrder = Enum.SortOrder.LayoutOrder,
         })
 
@@ -3485,23 +4011,14 @@ Layout.createTab = function(id, name, iconAsset, order)
     end
 
     Tabs[id] = {
-        button = {
-            outline = buttonFrame,
-            background = buttonFrame,
-        },
-        icon = icon,
-        label = label,
-        fill = fill,
-        hitbox = hitbox,
+        button = {},
         page = page,
+        pageTitle = pageTitle,
+        pageSubtitle = pageSubtitle,
+        iconAsset = iconAsset,
         columns = columns,
         order = order,
     }
-
-    hitbox.MouseButton1Click:Connect(function()
-        Layout.selectTab(id)
-    end)
-    Layout.reflowTabButtons()
 end
 
 Render.colorToHex = function(color)
@@ -3585,7 +4102,7 @@ local function createSubsectionHeader(entry)
         Parent = section.holder,
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
-        Size = UDim2.new(1, 0, 0, 16),
+        Size = UDim2.new(1, 0, 0, LayoutTokens.section.subsectionHeight),
         ZIndex = 20,
     })
 
@@ -3595,10 +4112,12 @@ local function createSubsectionHeader(entry)
         BackgroundColor3 = Theme.accent,
         Position = UDim2.new(0, 0, 0.5, 0),
         AnchorPoint = Vector2.new(0, 0.5),
-        Size = UDim2.fromOffset(14, 1),
+        Size = UDim2.fromOffset(14, 2),
+        BackgroundTransparency = 0.76,
         ZIndex = 21,
     })
     registerTheme("accent", accentLine, "BackgroundColor3")
+    applyCorner(accentLine, 2)
 
     local label = createThemedText(row, {
         Parent = row,
@@ -3609,23 +4128,34 @@ local function createSubsectionHeader(entry)
         Text = entry.subsection,
         TextSize = 10,
         TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
         ZIndex = 21,
     }, true)
 
     local labelWidth = measureText(entry.subsection, Enum.Font.GothamBold, 10).X
-    label.Size = UDim2.fromOffset(labelWidth + 2, 16)
+    label.Size = UDim2.fromOffset(labelWidth + 2, LayoutTokens.section.subsectionHeight)
     label.TextTransparency = 0.06
 
     local divider = create("Frame", {
         Parent = row,
         BorderSizePixel = 0,
         BackgroundColor3 = Theme.textDim,
-        BackgroundTransparency = 0.9,
-        Position = UDim2.fromOffset(24 + labelWidth, 8),
+        BackgroundTransparency = 0.92,
+        Position = UDim2.fromOffset(24 + labelWidth, math.floor(LayoutTokens.section.subsectionHeight * 0.5)),
         Size = UDim2.new(1, -(30 + labelWidth), 0, 1),
         ZIndex = 20,
     })
     registerTheme("textDim", divider, "BackgroundColor3")
+
+    SubsectionHeaders[key] = {
+        tabId = entry.tab,
+        sectionName = entry.section,
+        subsectionName = entry.subsection,
+        row = row,
+        accent = accentLine,
+        label = label,
+        divider = divider,
+    }
 end
 
 Render.createToggleRow = function(entry)
@@ -3633,42 +4163,35 @@ Render.createToggleRow = function(entry)
     local section = Layout.getSection(entry.tab, entry.column, entry.section)
     local hasPicker = entry.picker == true
 
-    local row = create("TextButton", {
-        Parent = section.holder,
-        BackgroundColor3 = Theme.accent,
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        Size = UDim2.new(1, 0, 0, 18),
-        AutoButtonColor = false,
-        Text = "",
-        ZIndex = 20,
-    })
-    applyCorner(row, 6)
+    local row, surface = createControlRowShell(section.holder, LayoutTokens.row.compactHeight, true, 20)
 
     local leftHolder = create("Frame", {
-        Parent = row,
+        Parent = surface,
         BackgroundTransparency = 1,
-        Size = hasPicker and UDim2.new(1, -112, 1, 0) or UDim2.new(1, -84, 1, 0),
+        Position = UDim2.fromOffset(0, 0),
+        Size = hasPicker and UDim2.new(1, -132, 1, 0) or UDim2.new(1, -104, 1, 0),
         ZIndex = 20,
     })
 
     local label = createThemedText(leftHolder, {
         Parent = leftHolder,
         BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 1, 0),
+        Position = UDim2.fromOffset(LayoutTokens.row.paddingX, 0),
+        Size = UDim2.new(1, -LayoutTokens.row.paddingX, 1, 0),
         Font = Enum.Font.GothamMedium,
         Text = entry.name,
         TextSize = 12,
         TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
         ZIndex = 21,
     }, false)
 
     local rightHolder = create("Frame", {
-        Parent = row,
+        Parent = surface,
         BackgroundTransparency = 1,
         AnchorPoint = Vector2.new(1, 0.5),
-        Position = UDim2.new(1, 0, 0.5, 0),
-        Size = hasPicker and UDim2.fromOffset(108, 18) or UDim2.fromOffset(80, 18),
+        Position = UDim2.new(1, -LayoutTokens.row.paddingX, 0.5, 0),
+        Size = hasPicker and UDim2.fromOffset(116, LayoutTokens.row.compactHeight) or UDim2.fromOffset(88, LayoutTokens.row.compactHeight),
         ZIndex = 20,
     })
 
@@ -3684,13 +4207,15 @@ Render.createToggleRow = function(entry)
     local bindText = createThemedText(rightHolder, {
         Parent = rightHolder,
         BackgroundTransparency = 1,
-        Size = UDim2.fromOffset(56, 16),
+        Size = UDim2.fromOffset(56, LayoutTokens.row.compactHeight),
         AutomaticSize = Enum.AutomaticSize.X,
         Font = Enum.Font.Code,
         Text = formatToggleBindText(entry),
         TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Right,
+        TextYAlignment = Enum.TextYAlignment.Center,
         ZIndex = 23,
-    }, false)
+    }, true)
     bindText.LayoutOrder = 1
 
     local colorShell
@@ -3698,19 +4223,26 @@ Render.createToggleRow = function(entry)
     local colorButton
 
     if hasPicker then
-        colorShell = addShell(rightHolder, UDim2.fromOffset(24, 14), UDim2.fromOffset(0, 0), false, 0, 21)
-        colorShell.outline.LayoutOrder = 2
+        local colorFrame, colorStroke = createSurface(rightHolder, {
+            Parent = rightHolder,
+            BorderSizePixel = 0,
+            Size = UDim2.fromOffset(24, 14),
+            BackgroundTransparency = 0.08,
+            LayoutOrder = 2,
+            ZIndex = 21,
+        }, "high", 5, "outline", 0.38)
         colorDisplay = create("Frame", {
-            Parent = colorShell.background,
+            Parent = colorFrame,
             BorderSizePixel = 0,
             BackgroundColor3 = entry.color,
-            Position = UDim2.fromOffset(1, 1),
-            Size = UDim2.new(1, -2, 1, -2),
+            Position = UDim2.fromOffset(2, 2),
+            Size = UDim2.new(1, -4, 1, -4),
             ZIndex = 23,
         })
+        applyCorner(colorDisplay, 4)
 
         colorButton = create("TextButton", {
-            Parent = colorShell.outline,
+            Parent = colorFrame,
             BackgroundTransparency = 1,
             Size = UDim2.new(1, 0, 1, 0),
             Text = "",
@@ -3719,11 +4251,12 @@ Render.createToggleRow = function(entry)
         })
     end
 
-    local switch = createSlideSwitch(rightHolder, UDim2.fromOffset(26, 14), UDim2.fromOffset(0, 0), 22)
+    local switch = createSlideSwitch(rightHolder, UDim2.fromOffset(30, 16), UDim2.fromOffset(0, 0), 22)
     switch.track.LayoutOrder = 3
 
     entry.ui = {
         row = row,
+        surface = surface,
         label = label,
         bindText = bindText,
         colorDisplay = colorDisplay,
@@ -3755,15 +4288,15 @@ Render.createToggleRow = function(entry)
     end)
 
     row.MouseEnter:Connect(function()
-        tween(row, 0.14, {
-            BackgroundTransparency = 0.95,
-        }, Enum.EasingStyle.Quad)
+        if NavigationState.selectedItem == nil then
+            setSurfaceHover(surface, true)
+            return
+        end
+        setSurfaceHover(surface, true)
     end)
 
     row.MouseLeave:Connect(function()
-        tween(row, 0.14, {
-            BackgroundTransparency = 1,
-        }, Enum.EasingStyle.Quad)
+        setSurfaceHover(surface, false)
     end)
 
     createKeybindEntry(entry)
@@ -3773,45 +4306,48 @@ Render.createButtonRow = function(entry)
     createSubsectionHeader(entry)
     local section = Layout.getSection(entry.tab, entry.column, entry.section)
 
-    local row = create("TextButton", {
-        Parent = section.holder,
-        BackgroundColor3 = Theme.accent,
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        Size = UDim2.new(1, -2, 0, 16),
-        AutoButtonColor = false,
-        Text = "",
-        ZIndex = 20,
-    })
+    local row, surface = createControlRowShell(section.holder, LayoutTokens.row.compactHeight, true, 20)
+    surface.BackgroundTransparency = 0.18
 
-    applyGradient(row, Color3.fromRGB(255, 255, 255), Color3.fromRGB(167, 167, 167), 90)
-
-    local label = createThemedText(row, {
-        Parent = row,
+    local label = createThemedText(surface, {
+        Parent = surface,
         BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 1, 0),
+        Position = UDim2.fromOffset(LayoutTokens.row.paddingX, 0),
+        Size = UDim2.new(1, -(LayoutTokens.row.paddingX * 2) - 14, 1, 0),
         Font = Enum.Font.GothamMedium,
         Text = entry.name,
         TextSize = 12,
         TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
         ZIndex = 21,
     }, false)
 
+    local accent = create("Frame", {
+        Parent = surface,
+        AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, -LayoutTokens.row.paddingX, 0.5, 0),
+        Size = UDim2.fromOffset(10, 2),
+        BorderSizePixel = 0,
+        BackgroundColor3 = Theme.accent,
+        BackgroundTransparency = 0.1,
+        ZIndex = 21,
+    })
+    registerTheme("accent", accent, "BackgroundColor3")
+    applyCorner(accent, 2)
+
     entry.ui = {
         row = row,
+        surface = surface,
         label = label,
+        accent = accent,
     }
 
     row.MouseEnter:Connect(function()
-        tween(row, 0.14, {
-            BackgroundTransparency = 0.93,
-        }, Enum.EasingStyle.Quad)
+        setSurfaceHover(surface, true, 0.18, 0.08)
     end)
 
     row.MouseLeave:Connect(function()
-        tween(row, 0.14, {
-            BackgroundTransparency = 1,
-        }, Enum.EasingStyle.Quad)
+        setSurfaceHover(surface, false, 0.18, 0.08)
     end)
 
     row.MouseButton1Click:Connect(function()
@@ -3823,37 +4359,33 @@ Render.createSliderRow = function(entry)
     createSubsectionHeader(entry)
     local section = Layout.getSection(entry.tab, entry.column, entry.section)
 
-    local row = create("Frame", {
-        Parent = section.holder,
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        Size = UDim2.new(1, -2, 0, 30),
-        ZIndex = 20,
-    })
+    local row, surface = createControlRowShell(section.holder, LayoutTokens.row.regularHeight, false, 20)
 
-    local label = createThemedText(row, {
-        Parent = row,
+    local label = createThemedText(surface, {
+        Parent = surface,
         BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(0, 0),
-        Size = UDim2.new(1, -72, 0, 14),
+        Position = UDim2.fromOffset(LayoutTokens.row.paddingX, 4),
+        Size = UDim2.new(1, -92, 0, 14),
         Font = Enum.Font.GothamMedium,
         Text = entry.name,
         TextSize = 12,
         TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
         ZIndex = 21,
     }, false)
 
     local valueLabel = create("TextBox", {
-        Parent = row,
+        Parent = surface,
         BackgroundTransparency = 1,
         AnchorPoint = Vector2.new(1, 0),
-        Position = UDim2.new(1, 0, 0, 0),
-        Size = UDim2.fromOffset(68, 14),
+        Position = UDim2.new(1, -LayoutTokens.row.paddingX, 0, 4),
+        Size = UDim2.fromOffset(76, 14),
         Font = Enum.Font.Code,
         Text = "",
         ClearTextOnFocus = false,
         TextSize = 11,
         TextXAlignment = Enum.TextXAlignment.Right,
+        TextYAlignment = Enum.TextYAlignment.Center,
         TextColor3 = Theme.textDim,
         ZIndex = 21,
     })
@@ -3866,10 +4398,17 @@ Render.createSliderRow = function(entry)
         LineJoinMode = Enum.LineJoinMode.Miter,
     })
 
-    local barShell = addShell(row, UDim2.new(1, 0, 0, 10), UDim2.fromOffset(0, 18), false, 0, 21)
-    barShell.background.ClipsDescendants = false
+    local barShell, _ = createSurface(surface, {
+        Parent = surface,
+        BorderSizePixel = 0,
+        Position = UDim2.fromOffset(LayoutTokens.row.paddingX, 22),
+        Size = UDim2.new(1, -(LayoutTokens.row.paddingX * 2), 0, 8),
+        BackgroundTransparency = 0.08,
+        ZIndex = 21,
+    }, "high", 5, "outline", 0.52)
+    barShell.ClipsDescendants = false
     local glow = create("Frame", {
-        Parent = barShell.background,
+        Parent = barShell,
         AnchorPoint = Vector2.new(0, 0.5),
         BorderSizePixel = 0,
         BackgroundColor3 = getSliderGlowColor(entry),
@@ -3881,17 +4420,17 @@ Render.createSliderRow = function(entry)
     applyCorner(glow, 4)
 
     local fill = create("Frame", {
-        Parent = barShell.background,
+        Parent = barShell,
         BorderSizePixel = 0,
         BackgroundColor3 = entry.color or Theme.accent,
         Size = UDim2.new(0, 0, 1, 0),
         ZIndex = 23,
     })
     registerTheme("accent", fill, "BackgroundColor3")
-    applyCorner(fill, 3)
+    applyCorner(fill, 5)
 
     local barButton = create("TextButton", {
-        Parent = barShell.outline,
+        Parent = barShell,
         BackgroundTransparency = 1,
         Size = UDim2.new(1, 0, 1, 0),
         Text = "",
@@ -3903,8 +4442,8 @@ Render.createSliderRow = function(entry)
     local internalTextChange = false
 
     local function setFromX(positionX)
-        local width = math.max(barShell.outline.AbsoluteSize.X, 1)
-        local relative = math.clamp(positionX - barShell.outline.AbsolutePosition.X, 0, width)
+        local width = math.max(barShell.AbsoluteSize.X, 1)
+        local relative = math.clamp(positionX - barShell.AbsolutePosition.X, 0, width)
         local alpha = relative / width
         local range = entry.max - entry.min
         applySliderValue(entry, entry.min + (range * alpha), true)
@@ -3973,6 +4512,7 @@ Render.createSliderRow = function(entry)
 
     entry.ui = {
         row = row,
+        surface = surface,
         label = label,
         valueLabel = valueLabel,
         glow = glow,
@@ -3984,33 +4524,35 @@ Render.createTextboxRow = function(entry)
     createSubsectionHeader(entry)
     local section = Layout.getSection(entry.tab, entry.column, entry.section)
 
-    local row = create("Frame", {
-        Parent = section.holder,
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        Size = UDim2.new(1, -2, 0, 30),
-        ZIndex = 20,
-    })
+    local row, surface = createControlRowShell(section.holder, LayoutTokens.row.regularHeight, false, 20)
 
-    local label = createThemedText(row, {
-        Parent = row,
+    local label = createThemedText(surface, {
+        Parent = surface,
         BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(0, 0),
+        Position = UDim2.fromOffset(LayoutTokens.row.paddingX, 4),
         Size = UDim2.new(1, 0, 0, 14),
         Font = Enum.Font.GothamMedium,
         Text = entry.name,
         TextSize = 12,
         TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
         ZIndex = 21,
     }, false)
 
-    local inputShell = addShell(row, UDim2.new(1, 0, 0, 12), UDim2.fromOffset(0, 18), false, 0, 21)
+    local inputShell = createSurface(surface, {
+        Parent = surface,
+        BorderSizePixel = 0,
+        Position = UDim2.fromOffset(LayoutTokens.row.paddingX, 20),
+        Size = UDim2.new(1, -(LayoutTokens.row.paddingX * 2), 0, LayoutTokens.row.inputHeight),
+        BackgroundTransparency = 0.08,
+        ZIndex = 21,
+    }, "high", 6, "outline", 0.52)
 
     local input = create("TextBox", {
-        Parent = inputShell.background,
+        Parent = inputShell,
         BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(4, -1),
-        Size = UDim2.new(1, -8, 1, 2),
+        Position = UDim2.fromOffset(8, 0),
+        Size = UDim2.new(1, -16, 1, 0),
         Font = Enum.Font.Code,
         Text = tostring(entry.value or ""),
         PlaceholderText = tostring(entry.placeholder or ""),
@@ -4018,17 +4560,12 @@ Render.createTextboxRow = function(entry)
         ClearTextOnFocus = false,
         TextSize = 11,
         TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
         TextColor3 = Theme.textDim,
         ZIndex = 23,
     })
     registerTheme("textDim", input, "TextColor3")
-
-    create("UIStroke", {
-        Parent = input,
-        Transparency = 0.75,
-        Thickness = 1,
-        LineJoinMode = Enum.LineJoinMode.Miter,
-    })
+    registerTheme("textDim", input, "PlaceholderColor3")
 
     input:GetPropertyChangedSignal("Text"):Connect(function()
         entry.value = input.Text
@@ -4049,6 +4586,7 @@ Render.createTextboxRow = function(entry)
 
     entry.ui = {
         row = row,
+        surface = surface,
         label = label,
         input = input,
     }
@@ -4058,62 +4596,66 @@ Render.createDropdownRow = function(entry)
     createSubsectionHeader(entry)
     local section = Layout.getSection(entry.tab, entry.column, entry.section)
 
-    local row = create("Frame", {
-        Parent = section.holder,
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        Size = UDim2.new(1, -2, 0, 16),
-        ZIndex = 20,
-    })
+    local row, surface = createControlRowShell(section.holder, LayoutTokens.row.compactHeight, false, 20)
 
     local button = create("TextButton", {
-        Parent = row,
-        BackgroundColor3 = Theme.accent,
+        Parent = surface,
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
-        Size = UDim2.new(1, 0, 0, 16),
+        Size = UDim2.new(1, 0, 1, 0),
         AutoButtonColor = false,
         Text = "",
-        ZIndex = 20,
+        ZIndex = 22,
     })
 
-    applyGradient(button, Color3.fromRGB(255, 255, 255), Color3.fromRGB(167, 167, 167), 90)
-
-    local label = createThemedText(button, {
-        Parent = button,
+    local label = createThemedText(surface, {
+        Parent = surface,
         BackgroundTransparency = 1,
-        Size = UDim2.new(1, -90, 1, 0),
+        Position = UDim2.fromOffset(LayoutTokens.row.paddingX, 0),
+        Size = UDim2.new(1, -116, 1, 0),
         Font = Enum.Font.GothamMedium,
         Text = entry.name,
         TextSize = 12,
         TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
         ZIndex = 21,
     }, false)
 
-    local valueLabel = createThemedText(button, {
-        Parent = button,
+    local valueLabel = createThemedText(surface, {
+        Parent = surface,
         BackgroundTransparency = 1,
         AnchorPoint = Vector2.new(1, 0),
-        Position = UDim2.new(1, 0, 0, 0),
-        Size = UDim2.fromOffset(86, 16),
+        Position = UDim2.new(1, -24, 0, 0),
+        Size = UDim2.fromOffset(88, LayoutTokens.row.compactHeight),
         Font = Enum.Font.Code,
         Text = "",
         TextSize = 11,
         TextTruncate = Enum.TextTruncate.AtEnd,
         TextXAlignment = Enum.TextXAlignment.Right,
+        TextYAlignment = Enum.TextYAlignment.Center,
+        ZIndex = 21,
+    }, true)
+
+    local chevron = createThemedText(surface, {
+        Parent = surface,
+        BackgroundTransparency = 1,
+        AnchorPoint = Vector2.new(1, 0),
+        Position = UDim2.new(1, -LayoutTokens.row.paddingX, 0, 0),
+        Size = UDim2.fromOffset(12, LayoutTokens.row.compactHeight),
+        Font = Enum.Font.Code,
+        Text = "v",
+        TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Center,
+        TextYAlignment = Enum.TextYAlignment.Center,
         ZIndex = 21,
     }, true)
 
     button.MouseEnter:Connect(function()
-        tween(button, 0.14, {
-            BackgroundTransparency = 0.94,
-        }, Enum.EasingStyle.Quad)
+        setSurfaceHover(surface, true)
     end)
 
     button.MouseLeave:Connect(function()
-        tween(button, 0.14, {
-            BackgroundTransparency = 1,
-        }, Enum.EasingStyle.Quad)
+        setSurfaceHover(surface, false)
     end)
 
     button.MouseButton1Click:Connect(function()
@@ -4132,9 +4674,11 @@ Render.createDropdownRow = function(entry)
 
     entry.ui = {
         row = row,
+        surface = surface,
         button = button,
         label = label,
         valueLabel = valueLabel,
+        chevron = chevron,
     }
 end
 
@@ -4142,59 +4686,48 @@ Render.createKeybindRow = function(entry)
     createSubsectionHeader(entry)
     local section = Layout.getSection(entry.tab, entry.column, entry.section)
 
-    local row = create("TextButton", {
-        Parent = section.holder,
-        BackgroundColor3 = Theme.accent,
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        Size = UDim2.new(1, -2, 0, 16),
-        AutoButtonColor = false,
-        Text = "",
-        ZIndex = 20,
-    })
+    local row, surface = createControlRowShell(section.holder, LayoutTokens.row.compactHeight, true, 20)
 
-    applyGradient(row, Color3.fromRGB(255, 255, 255), Color3.fromRGB(167, 167, 167), 90)
-
-    local label = createThemedText(row, {
-        Parent = row,
+    local label = createThemedText(surface, {
+        Parent = surface,
         BackgroundTransparency = 1,
-        Size = UDim2.new(1, -72, 1, 0),
+        Position = UDim2.fromOffset(LayoutTokens.row.paddingX, 0),
+        Size = UDim2.new(1, -104, 1, 0),
         Font = Enum.Font.GothamMedium,
         Text = entry.name,
         TextSize = 12,
         TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
         ZIndex = 21,
     }, false)
 
-    local bindText = createThemedText(row, {
-        Parent = row,
+    local bindText = createThemedText(surface, {
+        Parent = surface,
         BackgroundTransparency = 1,
         AnchorPoint = Vector2.new(1, 0),
-        Position = UDim2.new(1, 0, 0, 0),
-        Size = UDim2.fromOffset(68, 16),
+        Position = UDim2.new(1, -LayoutTokens.row.paddingX, 0, 0),
+        Size = UDim2.fromOffset(78, LayoutTokens.row.compactHeight),
         Font = Enum.Font.Code,
         Text = "",
         TextSize = 11,
         TextXAlignment = Enum.TextXAlignment.Right,
+        TextYAlignment = Enum.TextYAlignment.Center,
         ZIndex = 21,
     }, true)
 
     entry.ui = {
         row = row,
+        surface = surface,
         label = label,
         bindText = bindText,
     }
 
     row.MouseEnter:Connect(function()
-        tween(row, 0.14, {
-            BackgroundTransparency = 0.94,
-        }, Enum.EasingStyle.Quad)
+        setSurfaceHover(surface, true)
     end)
 
     row.MouseLeave:Connect(function()
-        tween(row, 0.14, {
-            BackgroundTransparency = 1,
-        }, Enum.EasingStyle.Quad)
+        setSurfaceHover(surface, false)
     end)
 
     row.MouseButton1Click:Connect(function()
@@ -4214,38 +4747,42 @@ Render.createColorRow = function(entry)
     createSubsectionHeader(entry)
     local section = Layout.getSection(entry.tab, entry.column, entry.section)
 
-    local row = create("Frame", {
-        Parent = section.holder,
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        Size = UDim2.new(1, -2, 0, 16),
-        ZIndex = 20,
-    })
+    local row, surface = createControlRowShell(section.holder, LayoutTokens.row.compactHeight, false, 20)
 
-    local label = createThemedText(row, {
-        Parent = row,
+    local label = createThemedText(surface, {
+        Parent = surface,
         BackgroundTransparency = 1,
-        Size = UDim2.new(1, -30, 1, 0),
+        Position = UDim2.fromOffset(LayoutTokens.row.paddingX, 0),
+        Size = UDim2.new(1, -54, 1, 0),
         Font = Enum.Font.GothamMedium,
         Text = entry.name,
         TextSize = 12,
         TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
         ZIndex = 21,
     }, false)
 
-    local colorShell = addShell(row, UDim2.fromOffset(24, 14), UDim2.new(1, 0, 0.5, -7), false, 0, 21)
-    colorShell.outline.AnchorPoint = Vector2.new(1, 0)
+    local colorShell = createSurface(surface, {
+        Parent = surface,
+        BorderSizePixel = 0,
+        AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, -LayoutTokens.row.paddingX, 0.5, 0),
+        Size = UDim2.fromOffset(24, 14),
+        BackgroundTransparency = 0.08,
+        ZIndex = 21,
+    }, "high", 5, "outline", 0.38)
     local colorDisplay = create("Frame", {
-        Parent = colorShell.background,
+        Parent = colorShell,
         BorderSizePixel = 0,
         BackgroundColor3 = entry.color,
-        Position = UDim2.fromOffset(1, 1),
-        Size = UDim2.new(1, -2, 1, -2),
+        Position = UDim2.fromOffset(2, 2),
+        Size = UDim2.new(1, -4, 1, -4),
         ZIndex = 23,
     })
+    applyCorner(colorDisplay, 4)
 
     local colorButton = create("TextButton", {
-        Parent = colorShell.outline,
+        Parent = colorShell,
         BackgroundTransparency = 1,
         Size = UDim2.new(1, 0, 1, 0),
         Text = "",
@@ -4255,6 +4792,7 @@ Render.createColorRow = function(entry)
 
     entry.ui = {
         row = row,
+        surface = surface,
         label = label,
         colorDisplay = colorDisplay,
         colorButton = colorButton,
@@ -4286,19 +4824,32 @@ for _, entry in ipairs(Entries) do
     end
 end
 
-Layout.selectTab = function(id)
+Layout.selectTab = function(id, preserveNavigationItem)
     CurrentTab = id
+
+    if not preserveNavigationItem then
+        NavigationState.selectedItem = getDefaultNavigationItemId(id)
+    elseif NavigationState.selectedItem then
+        local selectedItem = getNavigationItemById(NavigationState.selectedItem)
+        if not selectedItem or selectedItem.tabId ~= id then
+            NavigationState.selectedItem = getDefaultNavigationItemId(id)
+        end
+    end
 
     for tabId, tab in pairs(Tabs) do
         local selected = tabId == id
-        tween(tab.fill, 0.14, {
-            BackgroundTransparency = selected and 0.84 or 1,
-        }, Enum.EasingStyle.Quad)
-        tab.icon.ImageColor3 = selected and Theme.accentGlow or Theme.textDim
-        tab.label.TextColor3 = selected and Theme.text or Theme.textDim
         tab.page.Visible = selected
         tab.page.Position = UDim2.fromOffset(0, 0)
     end
+
+    local selectedItem = getNavigationItemById(NavigationState.selectedItem)
+    local currentTab = Tabs[id]
+    if currentTab and currentTab.pageSubtitle then
+        currentTab.pageSubtitle.Text = selectedItem and selectedItem.label or "structured layout"
+    end
+
+    updateSidebarButtons()
+    refreshSectionHighlights()
 
     task.defer(function()
         for columnIndex = 1, 3 do
@@ -4569,7 +5120,11 @@ refreshRows = function()
             end
         elseif entry.kind == "dropdown" and entry.ui then
             entry.ui.valueLabel.Text = formatDropdownValue(entry)
-            entry.ui.row.Size = UDim2.new(1, -2, 0, 16)
+            if entry.ui.chevron then
+                entry.ui.chevron.Text = entry.open and "^" or "v"
+                entry.ui.chevron.TextColor3 = entry.open and Theme.accent or Theme.textDim
+            end
+            entry.ui.row.Size = UDim2.new(1, 0, 0, LayoutTokens.row.compactHeight)
         elseif entry.kind == "keybind" and entry.ui then
             entry.ui.label.TextColor3 = Theme.text
             entry.ui.bindText.Text = MenuState.listeningKeybindEntry == entry and "..." or bindToText(entry.bind)
@@ -4589,6 +5144,9 @@ refreshRows = function()
 
     Panels.refreshDropdownOverlay()
     Motion.refreshKeybindList()
+    if Layout.refreshSectionHighlights then
+        Layout.refreshSectionHighlights()
+    end
 end
 
 updateWatermark = function()
@@ -5077,11 +5635,14 @@ WindowLifecycle.clearState = function()
     end
 
     for _, tab in pairs(Tabs) do
-        if tab.button and tab.button.outline and tab.button.outline.Parent then
-            tab.button.outline:Destroy()
-        end
         if tab.page and tab.page.Parent then
             tab.page:Destroy()
+        end
+    end
+
+    for _, child in ipairs(TabHolder:GetChildren()) do
+        if not child:IsA("UIListLayout") then
+            child:Destroy()
         end
     end
 
@@ -5091,6 +5652,9 @@ WindowLifecycle.clearState = function()
     table.clear(Entries)
     table.clear(EntryMap)
     table.clear(CreatedSubsectionHeaders)
+    table.clear(SubsectionHeaders)
+    table.clear(NavigationState.buttons)
+    NavigationState.selectedItem = nil
 
     DefaultTabId = nil
     CurrentTab = nil
@@ -5274,13 +5838,16 @@ end
 
 function SectionMethods:AddSubsection(config)
     local name = type(config) == "table" and config.Name or config
+    local subsectionName = tostring(name or "General")
+
+    Layout.registerSubsectionNavigation(self.tabId, self.sectionName, subsectionName, self.column)
 
     return setmetatable({
         tabId = self.tabId,
         tabName = self.tabName,
         sectionName = self.sectionName,
         column = self.column,
-        subsectionName = tostring(name or "General"),
+        subsectionName = subsectionName,
         tags = mergeTags(self.tags, type(config) == "table" and config.Tags or nil),
     }, SectionMethods)
 end
@@ -5356,6 +5923,7 @@ function MenuMethods:AddSection(config)
     }, SectionMethods)
 
     local uiSection = Layout.getSection(section.tabId, section.column, section.sectionName)
+    Layout.registerSectionNavigation(section.tabId, section.sectionName, section.column)
     if config.Height then
         uiSection.maxContentHeight = config.Height
         uiSection.fixedHeight = true
@@ -5379,9 +5947,12 @@ function WindowMethods:AddMenu(config)
         name = name,
         icon = resolveIcon(config.Icon),
         order = #TabDefinitions + 1,
+        sectionMeta = {},
+        sectionOrder = {},
     }
 
     Layout.createTab(id, name, resolveIcon(config.Icon), #TabDefinitions)
+    Layout.reflowTabButtons()
 
     if not DefaultTabId then
         DefaultTabId = id
@@ -5389,8 +5960,6 @@ function WindowMethods:AddMenu(config)
 
     if not CurrentTab then
         Layout.selectTab(id)
-    else
-        Layout.reflowTabButtons()
     end
 
     return setmetatable({
@@ -5846,25 +6415,6 @@ end
 function Atlanta:Destroy()
     destroyLibrary()
 end
-
---[[
-Usage:
-
-local UI = loadstring(game:HttpGet("your raw github link"))()
-local Window = UI.new({
-    Name = "NeverPaste",
-    MenuBind = Enum.KeyCode.Insert,
-    -- Intro = false,
-})
-
-local Combat = Window:AddMenu({ Name = "Combat", Icon = "target" })
-local Aim = Combat:AddSection({ Name = "Aim", Position = "left" })
-local Targeting = Aim:AddSubsection("Targeting")
-
-Targeting:AddToggle({ Name = "Aimbot", Default = false, Bind = Enum.KeyCode.Q, Callback = function(state) end })
-Targeting:AddSlider({ Name = "FOV", Min = 0, Max = 30, Default = 5, Round = 0.1, Type = " deg" })
-Targeting:AddDropdown({ Name = "Hitbox", Values = { "Head", "Chest", "Stomach" }, Default = "Head" })
-]]
 
 -- Module exports
 -- Services
