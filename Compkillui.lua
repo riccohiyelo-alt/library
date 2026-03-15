@@ -806,6 +806,7 @@ local Sections = {}
 local TabDefinitions = {}
 local Entries = {}
 local EntryMap = {}
+local PreviewEntries = {}
 local CreatedSubsectionHeaders = {}
 local ModeButtons = {}
 
@@ -4158,38 +4159,101 @@ end
 
 end
 
-local function getFlagState(flagName)
-    local entry = EntryMap[flagName]
-    return (entry and entry.state) == true or (entry and entry.mode == "always")
+local function normalizePreviewRole(role)
+    if role == nil or role == false then
+        return nil
+    end
+
+    return slugify(role)
 end
 
-local function hasFlagEntry(flagName)
-    return EntryMap[flagName] ~= nil
+local function resolvePreviewEntry(role, fallbackFlags)
+    local normalizedRole = normalizePreviewRole(role)
+    if normalizedRole and PreviewEntries[normalizedRole] then
+        return PreviewEntries[normalizedRole]
+    end
+
+    if type(fallbackFlags) == "string" then
+        fallbackFlags = { fallbackFlags }
+    end
+
+    if type(fallbackFlags) == "table" then
+        for _, fallbackFlag in ipairs(fallbackFlags) do
+            if EntryMap[fallbackFlag] then
+                return EntryMap[fallbackFlag]
+            end
+
+            local normalizedFallback = normalizePreviewRole(fallbackFlag)
+            if normalizedFallback and PreviewEntries[normalizedFallback] then
+                return PreviewEntries[normalizedFallback]
+            end
+        end
+    end
+
+    return nil
 end
 
-local function getFlagColor(flagName, fallbackFlagName)
-    local entry = EntryMap[flagName]
+local function hasPreviewEntry(role, fallbackFlags)
+    return resolvePreviewEntry(role, fallbackFlags) ~= nil
+end
+
+local function getPreviewState(role, fallbackFlags, defaultValue)
+    local entry = resolvePreviewEntry(role, fallbackFlags)
+    if not entry then
+        return defaultValue == true
+    end
+
+    if entry.kind == "toggle" then
+        return entry.mode == "always" or entry.state == true
+    end
+
+    if entry.kind == "dropdown" then
+        if entry.multi then
+            return next(entry.value or {}) ~= nil
+        end
+
+        return entry.value ~= nil
+    end
+
+    if entry.kind == "slider" then
+        return tonumber(entry.value) ~= nil
+    end
+
+    if entry.kind == "textbox" then
+        return tostring(entry.value or "") ~= ""
+    end
+
+    return defaultValue == true
+end
+
+local function getPreviewColor(role, fallbackFlags, defaultColor)
+    local entry = resolvePreviewEntry(role, fallbackFlags)
     if entry and typeof(entry.color) == "Color3" then
         return entry.color
     end
 
-    if fallbackFlagName then
-        local fallbackEntry = EntryMap[fallbackFlagName]
-        if fallbackEntry and typeof(fallbackEntry.color) == "Color3" then
-            return fallbackEntry.color
-        end
+    return defaultColor or Color3.new(1, 1, 1)
+end
+
+local function getPreviewValue(role, fallbackFlags, defaultValue)
+    local entry = resolvePreviewEntry(role, fallbackFlags)
+    if not entry then
+        return defaultValue
     end
 
-    return Color3.new(1, 1, 1)
+    if entry.kind == "toggle" then
+        return entry.mode == "always" or entry.state == true
+    end
+
+    if entry.kind == "color" then
+        return entry.color
+    end
+
+    return entry.value
 end
 
-local function getFlagValue(flagName)
-    local entry = EntryMap[flagName]
-    return entry and entry.value or ""
-end
-
-local function getFlagNumber(flagName, defaultValue)
-    local value = tonumber(getFlagValue(flagName))
+local function getPreviewNumber(role, fallbackFlags, defaultValue)
+    local value = tonumber(getPreviewValue(role, fallbackFlags, defaultValue))
     if value == nil then
         return defaultValue
     end
@@ -4582,7 +4646,7 @@ Render.createESPPreviewRow = function(entry)
     })
 
     local function resolvePreviewChamMaterial()
-        local materialName = string.lower(tostring(getFlagValue("Chams_Material") or "Plastic"))
+        local materialName = string.lower(tostring(getPreviewValue("chams_material", "Chams_Material", "Plastic") or "Plastic"))
         local materialMap = {
             ["plastic"] = Enum.Material.Plastic,
             ["force field"] = Enum.Material.ForceField,
@@ -4614,8 +4678,8 @@ Render.createESPPreviewRow = function(entry)
     end
 
     local function updateChamPreview(enabled)
-        local chamColor = getFlagColor("Chams")
-        local chamTransparency = math.clamp(getFlagNumber("Chams_Transparency", 0.2), 0, 1)
+        local chamColor = getPreviewColor("chams", "Chams", Theme.accent)
+        local chamTransparency = math.clamp(getPreviewNumber("chams_transparency", "Chams_Transparency", 0.2), 0, 1)
         local chamMaterial = resolvePreviewChamMaterial()
 
         for part, defaults in pairs(previewPartDefaults) do
@@ -4639,11 +4703,11 @@ Render.createESPPreviewRow = function(entry)
             return
         end
 
-        local highlightColor = getFlagColor("Highlight")
+        local highlightColor = getPreviewColor("highlight", "Highlight", Theme.accent)
         objects.highlight.FillColor = highlightColor
         objects.highlight.OutlineColor = highlightColor:Lerp(Color3.new(1, 1, 1), 0.35)
-        objects.highlight.FillTransparency = math.clamp(getFlagNumber("Highlight_Fill_Transparency", 0.72), 0, 1)
-        objects.highlight.OutlineTransparency = math.clamp(getFlagNumber("Highlight_Outline_Transparency", 0), 0, 1)
+        objects.highlight.FillTransparency = math.clamp(getPreviewNumber("highlight_fill_transparency", "Highlight_Fill_Transparency", 0.72), 0, 1)
+        objects.highlight.OutlineTransparency = math.clamp(getPreviewNumber("highlight_outline_transparency", "Highlight_Outline_Transparency", 0), 0, 1)
     end
 
     local function updateOverlayVisuals(enabled)
@@ -4667,13 +4731,13 @@ Render.createESPPreviewRow = function(entry)
             overlayAbsoluteSize.Y - 10
         )
 
-        local snaplineEnabled = enabled and getFlagState("Snapline")
-        setLineFrame(objects.snapline, screenBottomCenter, bottomCenter, getFlagColor("Snapline"), 2, snaplineEnabled)
+        local snaplineEnabled = enabled and getPreviewState("snapline", "Snapline")
+        setLineFrame(objects.snapline, screenBottomCenter, bottomCenter, getPreviewColor("snapline", "Snapline", Theme.text), 2, snaplineEnabled)
 
-        local headDotEnabled = enabled and getFlagState("Head_Dot")
+        local headDotEnabled = enabled and getPreviewState("head_dot", "Head_Dot")
         objects.headDot.Visible = headDotEnabled
         if headDotEnabled then
-            objects.headDot.BackgroundColor3 = getFlagColor("Head_Dot")
+            objects.headDot.BackgroundColor3 = getPreviewColor("head_dot", "Head_Dot", Theme.accent)
             objects.headDot.Position = UDim2.fromOffset(topCenter.X, topCenter.Y - 10)
         end
     end
@@ -4754,9 +4818,13 @@ Render.createESPPreviewRow = function(entry)
         end
 
         local alpha = math.abs(math.sin(tick() * 2))
-        local hasCustomHealthGradient = hasFlagEntry("Health_Low") or hasFlagEntry("Health_High")
-        local lowColor = hasCustomHealthGradient and getFlagColor("Health_Low", "Healthbar") or getFlagColor("Healthbar")
-        local highColor = hasCustomHealthGradient and getFlagColor("Health_High", "Healthbar") or lowColor
+        local hasCustomHealthGradient = hasPreviewEntry("health_low", "Health_Low") or hasPreviewEntry("health_high", "Health_High")
+        local lowColor = hasCustomHealthGradient
+            and getPreviewColor("health_low", { "Health_Low", "Healthbar" }, Theme.accent)
+            or getPreviewColor("healthbar", "Healthbar", Theme.accent)
+        local highColor = hasCustomHealthGradient
+            and getPreviewColor("health_high", { "Health_High", "Healthbar" }, lowColor)
+            or lowColor
         objects.healthbar.Size = UDim2.new(1, -2, alpha, -2)
         objects.healthbar.Position = UDim2.new(0, 1, 1 - alpha, 1)
         objects.healthbar.BackgroundColor3 = lowColor:Lerp(highColor, alpha)
@@ -4765,32 +4833,32 @@ Render.createESPPreviewRow = function(entry)
     local function refreshPreview()
         updatePreviewVisibility()
 
-        local enabled = getFlagState("Enabled")
+        local enabled = getPreviewState("enabled", "Enabled", true)
         holder.Visible = enabled
 
-        objects.name.TextColor3 = getFlagColor("Name_Color", "Names")
-        objects.name.Parent = enabled and getFlagState("Names") and holder or cacheInfoFrame
+        objects.name.TextColor3 = getPreviewColor("name_color", { "Name_Color", "Names" }, Theme.text)
+        objects.name.Parent = enabled and getPreviewState("names", "Names") and holder or cacheInfoFrame
 
-        objects.distance.TextColor3 = getFlagColor("Distance_Color", "Distance")
-        objects.distance.Parent = enabled and getFlagState("Distance") and holder or cacheInfoFrame
+        objects.distance.TextColor3 = getPreviewColor("distance_color", { "Distance_Color", "Distance" }, Theme.text)
+        objects.distance.Parent = enabled and getPreviewState("distance", "Distance") and holder or cacheInfoFrame
 
-        objects.weapon.TextColor3 = getFlagColor("Weapon_Color", "Weapon")
-        objects.weapon.Parent = enabled and getFlagState("Weapon") and holder or cacheInfoFrame
+        objects.weapon.TextColor3 = getPreviewColor("weapon_color", { "Weapon_Color", "Weapon" }, Theme.text)
+        objects.weapon.Parent = enabled and getPreviewState("weapon", "Weapon") and holder or cacheInfoFrame
 
-        objects.healthbarHolder.Parent = enabled and getFlagState("Healthbar") and holder or cacheInfoFrame
+        objects.healthbarHolder.Parent = enabled and getPreviewState("healthbar", "Healthbar") and holder or cacheInfoFrame
 
-        local boxColor = getFlagColor("Box_Color", "Boxes")
+        local boxColor = getPreviewColor("box_color", { "Box_Color", "Boxes" }, Theme.accent)
         objects.boxColor.Color = boxColor
         for index = 1, 8 do
             objects["corner" .. index].inner.BackgroundColor3 = boxColor
         end
 
-        updateChamPreview(enabled and getFlagState("Chams"))
-        updateHighlightPreview(enabled and getFlagState("Highlight"))
+        updateChamPreview(enabled and getPreviewState("chams", "Chams"))
+        updateHighlightPreview(enabled and getPreviewState("highlight", "Highlight"))
         updateOverlayVisuals(enabled)
 
-        if enabled and getFlagState("Boxes") then
-            if getFlagValue("Box_Type") == "Full" then
+        if enabled and getPreviewState("boxes", "Boxes") then
+            if tostring(getPreviewValue("box_type", "Box_Type", "Corner")) == "Full" then
                 objects.boxHandler.Parent = holder
                 objects.corners.Parent = cacheInfoFrame
             else
@@ -5660,6 +5728,7 @@ WindowLifecycle.clearState = function()
     table.clear(TabDefinitions)
     table.clear(Entries)
     table.clear(EntryMap)
+    table.clear(PreviewEntries)
     table.clear(CreatedSubsectionHeaders)
 
     DefaultTabId = nil
@@ -5731,6 +5800,7 @@ local function registerEntry(entry)
     end
 
     entry.id = makeEntryId(entry.id or entry.flag or string.format("%s_%s_%s", entry.tab, entry.section, entry.name))
+    entry.espPreview = normalizePreviewRole(entry.espPreview)
     entry.tags = mergeTags(entry.tags, { entry.kind }, { entry.section }, entry.subsection and { entry.subsection } or nil)
 
     if entry.kind == "toggle" then
@@ -5751,6 +5821,9 @@ local function registerEntry(entry)
     end
 
     EntryMap[entry.id] = entry
+    if entry.espPreview then
+        PreviewEntries[entry.espPreview] = entry
+    end
     Entries[#Entries + 1] = entry
 
     renderEntry(entry)
@@ -5828,6 +5901,10 @@ end
 
 local function buildSectionEntry(section, kind, config)
     config = config or {}
+    local previewRole = config.ESPPreview or config.EspPreview or config.Preview
+    if previewRole == true then
+        previewRole = config.Flag or config.Id or config.Name
+    end
 
     return {
         id = config.Flag or config.Id,
@@ -5842,6 +5919,7 @@ local function buildSectionEntry(section, kind, config)
         tags = mergeTags(section.tags, config.Tags),
         callback = config.Callback,
         skipConfig = config.SkipConfig == true,
+        espPreview = previewRole,
     }
 end
 
