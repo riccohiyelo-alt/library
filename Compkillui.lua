@@ -631,7 +631,7 @@ do
 
     create("UIListLayout", {
         Parent = introLetters,
-        FillDirection = Enum.FillDirection.Horizontal,
+        FillDirection = Enum.FillDirection.Vertical,
         HorizontalAlignment = Enum.HorizontalAlignment.Center,
         VerticalAlignment = Enum.VerticalAlignment.Center,
         SortOrder = Enum.SortOrder.LayoutOrder,
@@ -940,18 +940,18 @@ local TabHolder = create("Frame", {
     Parent = WindowShell.background,
     BackgroundTransparency = 1,
     Position = UDim2.fromOffset(6, 22),
-    Size = UDim2.new(1, -12, 0, 22),
+    Size = UDim2.new(0, 110, 1, -50),
     ZIndex = 14,
 })
 
 create("UIListLayout", {
     Parent = TabHolder,
-    FillDirection = Enum.FillDirection.Horizontal,
+    FillDirection = Enum.FillDirection.Vertical,
     Padding = UDim.new(0, 2),
     SortOrder = Enum.SortOrder.LayoutOrder,
 })
 
-local ContentShell = addShell(WindowShell.background, UDim2.new(1, -12, 1, -72), UDim2.fromOffset(6, 44), false, 0, 12)
+local ContentShell = addShell(WindowShell.background, UDim2.new(1, -122, 1, -50), UDim2.fromOffset(120, 22), false, 0, 12)
 
 create("UIPadding", {
     Parent = ContentShell.background,
@@ -2862,7 +2862,7 @@ do
 
     create("UIListLayout", {
         Parent = modeHolder,
-        FillDirection = Enum.FillDirection.Horizontal,
+        FillDirection = Enum.FillDirection.Vertical,
         Padding = UDim.new(0, 4),
         SortOrder = Enum.SortOrder.LayoutOrder,
     })
@@ -3276,7 +3276,7 @@ Layout.reflowTabButtons = function()
     for _, definition in ipairs(TabDefinitions) do
         local tab = Tabs[definition.id]
         if tab and tab.button and tab.button.outline then
-            tab.button.outline.Size = UDim2.new(1 / count, -2, 1, 0)
+            tab.button.outline.Size = UDim2.new(1, 0, 0, 26)
         end
     end
 end
@@ -3285,8 +3285,7 @@ Layout.createTab = function(id, name, iconAsset, order)
     local columnGap = 6
     local columnCount = 3
     local columnWidthOffset = -math.floor((columnGap * (columnCount - 1)) / columnCount + 0.5)
-    local tabWidth = math.max(#TabDefinitions, 1) > 0 and (1 / math.max(#TabDefinitions, 1)) or 1
-    local buttonShell = addShell(TabHolder, UDim2.new(tabWidth, -2, 1, 0), UDim2.fromOffset(0, 0), false, 0, 16)
+    local buttonShell = addShell(TabHolder, UDim2.new(1, 0, 0, 26), UDim2.fromOffset(0, 0), false, 0, 16)
     buttonShell.outline.LayoutOrder = order
 
     local fill = create("Frame", {
@@ -3316,12 +3315,12 @@ Layout.createTab = function(id, name, iconAsset, order)
     local label = createThemedText(buttonShell.background, {
         Parent = buttonShell.background,
         BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(0, 0),
-        Size = UDim2.new(1, 0, 1, 0),
+        Position = UDim2.fromOffset(26, 0),
+        Size = UDim2.new(1, -26, 1, 0),
         Font = Enum.Font.GothamMedium,
         Text = name,
         TextSize = 12,
-        TextXAlignment = Enum.TextXAlignment.Center,
+        TextXAlignment = Enum.TextXAlignment.Left,
         ZIndex = 20,
     }, false)
 
@@ -3523,7 +3522,7 @@ Render.createToggleRow = function(entry)
 
     create("UIListLayout", {
         Parent = leftHolder,
-        FillDirection = Enum.FillDirection.Horizontal,
+        FillDirection = Enum.FillDirection.Vertical,
         Padding = UDim.new(0, 5),
         VerticalAlignment = Enum.VerticalAlignment.Center,
         SortOrder = Enum.SortOrder.LayoutOrder,
@@ -3568,7 +3567,7 @@ Render.createToggleRow = function(entry)
 
     local rightLayout = create("UIListLayout", {
         Parent = rightHolder,
-        FillDirection = Enum.FillDirection.Horizontal,
+        FillDirection = Enum.FillDirection.Vertical,
         HorizontalAlignment = Enum.HorizontalAlignment.Right,
         VerticalAlignment = Enum.VerticalAlignment.Center,
         Padding = UDim.new(0, 4),
@@ -6253,3 +6252,6 @@ MenuState.introDone = false
 MenuState.visible = false
 
 return Atlanta
+
+
+
