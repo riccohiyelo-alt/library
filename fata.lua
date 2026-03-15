@@ -3321,14 +3321,17 @@ Layout.createTab = function(id, name, iconAsset, order)
     local columnGap = 6
     local columnCount = 3
     local columnWidthOffset = -math.floor((columnGap * (columnCount - 1)) / columnCount + 0.5)
-    local buttonShell = addShell(TabHolder, UDim2.new(1, 0, 0, 28), UDim2.fromOffset(0, 0), false, 0, 16)
-    buttonShell.outline.LayoutOrder = order
-    buttonShell.outline.BackgroundTransparency = 1
-    buttonShell.inline.BackgroundTransparency = 1
-    buttonShell.background.BackgroundTransparency = 1
+    local buttonFrame = create("Frame", {
+        Parent = TabHolder,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 0, 28),
+        LayoutOrder = order,
+        ZIndex = 16,
+    })
 
     local fill = create("Frame", {
-        Parent = buttonShell.background,
+        Parent = buttonFrame,
         AnchorPoint = Vector2.new(0, 0.5),
         BorderSizePixel = 0,
         BackgroundColor3 = Theme.accent,
@@ -3351,7 +3354,7 @@ Layout.createTab = function(id, name, iconAsset, order)
     registerTheme("accent", activeBar, "BackgroundColor3")
 
     local icon = create("ImageLabel", {
-        Parent = buttonShell.background,
+        Parent = buttonFrame,
         BackgroundTransparency = 1,
         AnchorPoint = Vector2.new(0, 0.5),
         Position = UDim2.new(0, 10, 0.5, 0),
@@ -3362,8 +3365,8 @@ Layout.createTab = function(id, name, iconAsset, order)
     })
     registerTheme("textDim", icon, "ImageColor3")
 
-    local label = createThemedText(buttonShell.background, {
-        Parent = buttonShell.background,
+    local label = createThemedText(buttonFrame, {
+        Parent = buttonFrame,
         BackgroundTransparency = 1,
         Position = UDim2.fromOffset(30, 0),
         Size = UDim2.new(1, -32, 1, 0),
@@ -3375,7 +3378,7 @@ Layout.createTab = function(id, name, iconAsset, order)
     }, false)
 
     local hitbox = create("TextButton", {
-        Parent = buttonShell.outline,
+        Parent = buttonFrame,
         BackgroundTransparency = 1,
         Size = UDim2.new(1, 0, 1, 0),
         Text = "",
@@ -3419,7 +3422,9 @@ Layout.createTab = function(id, name, iconAsset, order)
     end
 
     Tabs[id] = {
-        button = buttonShell,
+        button = {
+            outline = buttonFrame,
+        },
         icon = icon,
         label = label,
         fill = fill,
