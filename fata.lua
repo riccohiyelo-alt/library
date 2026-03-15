@@ -950,7 +950,7 @@ SidebarShell.outline = create("Frame", {
     BackgroundColor3 = Theme.outline,
     Position = UDim2.fromOffset(4, 4),
     Size = UDim2.new(0, SidebarWidth, 1, -8),
-    BackgroundTransparency = 0.82,
+    BackgroundTransparency = 0.9,
     ZIndex = 12,
 })
 registerTheme("outline", SidebarShell.outline, "BackgroundColor3")
@@ -971,7 +971,7 @@ WindowShell.sidebarGlass = create("Frame", {
     BorderSizePixel = 0,
     BackgroundColor3 = Theme.low,
     Size = UDim2.new(1, 0, 1, 0),
-    BackgroundTransparency = 0.5,
+    BackgroundTransparency = 0.88,
     ZIndex = 13,
 })
 registerTheme("inline", WindowShell.sidebarGlass, "BackgroundColor3")
@@ -982,7 +982,7 @@ WindowShell.sidebarDivider = create("Frame", {
     BackgroundColor3 = Theme.outline,
     Position = UDim2.new(1, -1, 0, 0),
     Size = UDim2.new(0, 1, 1, 0),
-    BackgroundTransparency = 0.55,
+    BackgroundTransparency = 0.72,
     ZIndex = 14,
 })
 registerTheme("outline", WindowShell.sidebarDivider, "BackgroundColor3")
@@ -3369,14 +3369,14 @@ Layout.createTab = function(id, name, iconAsset, order)
         Parent = buttonFrame,
         AnchorPoint = Vector2.new(0, 0.5),
         BorderSizePixel = 0,
-        BackgroundColor3 = Theme.accent,
+        BackgroundColor3 = Theme.section,
         Position = UDim2.new(0, 0, 0.5, 0),
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
         ZIndex = 19,
     })
-    registerTheme("accent", fill, "BackgroundColor3")
-    applyCorner(fill, 3)
+    registerTheme("section", fill, "BackgroundColor3")
+    applyCorner(fill, 4)
 
     local activeBar = create("Frame", {
         Parent = fill,
@@ -4287,7 +4287,7 @@ Layout.selectTab = function(id)
 
     for tabId, tab in pairs(Tabs) do
         local selected = tabId == id
-        tab.fill.BackgroundTransparency = 1
+        tab.fill.BackgroundTransparency = selected and 0.5 or 1
         tab.fill.Visible = true
         if tab.activeBar then
             tab.activeBar.Visible = selected
