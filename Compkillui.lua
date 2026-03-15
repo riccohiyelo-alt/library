@@ -3572,6 +3572,9 @@ local function getDefaultNavigationItemId(tabId)
     return items[1] and items[1].id or nil
 end
 
+Layout.getNavigationItemById = getNavigationItemById
+Layout.getDefaultNavigationItemId = getDefaultNavigationItemId
+
 local function updateSidebarButtons()
     for _, buttonData in pairs(NavigationState.buttons) do
         if buttonData.groupLabel then
@@ -3634,6 +3637,7 @@ local function refreshSectionHighlights()
     end
 end
 Layout.refreshSectionHighlights = refreshSectionHighlights
+Layout.updateSidebarButtons = updateSidebarButtons
 
 Layout.refreshSidebarNavigation = function()
     for _, child in ipairs(TabHolder:GetChildren()) do
@@ -3744,8 +3748,8 @@ Layout.refreshSidebarNavigation = function()
         end)
     end
 
-    if not NavigationState.selectedItem or not getNavigationItemById(NavigationState.selectedItem) then
-        NavigationState.selectedItem = getDefaultNavigationItemId(CurrentTab or DefaultTabId)
+    if not NavigationState.selectedItem or not Layout.getNavigationItemById(NavigationState.selectedItem) then
+        NavigationState.selectedItem = Layout.getDefaultNavigationItemId(CurrentTab or DefaultTabId)
     end
 
     updateSidebarButtons()
@@ -3783,7 +3787,7 @@ Layout.registerSubsectionNavigation = function(tabId, sectionName, subsectionNam
 end
 
 Layout.selectNavigationItem = function(itemId)
-    local item = getNavigationItemById(itemId)
+    local item = Layout.getNavigationItemById(itemId)
     if not item then
         return false
     end
@@ -4828,11 +4832,11 @@ Layout.selectTab = function(id, preserveNavigationItem)
     CurrentTab = id
 
     if not preserveNavigationItem then
-        NavigationState.selectedItem = getDefaultNavigationItemId(id)
+        NavigationState.selectedItem = Layout.getDefaultNavigationItemId(id)
     elseif NavigationState.selectedItem then
-        local selectedItem = getNavigationItemById(NavigationState.selectedItem)
+        local selectedItem = Layout.getNavigationItemById(NavigationState.selectedItem)
         if not selectedItem or selectedItem.tabId ~= id then
-            NavigationState.selectedItem = getDefaultNavigationItemId(id)
+            NavigationState.selectedItem = Layout.getDefaultNavigationItemId(id)
         end
     end
 
@@ -4842,7 +4846,7 @@ Layout.selectTab = function(id, preserveNavigationItem)
         tab.page.Position = UDim2.fromOffset(0, 0)
     end
 
-    local selectedItem = getNavigationItemById(NavigationState.selectedItem)
+    local selectedItem = Layout.getNavigationItemById(NavigationState.selectedItem)
     local currentTab = Tabs[id]
     if currentTab and currentTab.pageSubtitle then
         currentTab.pageSubtitle.Text = selectedItem and selectedItem.label or "structured layout"
