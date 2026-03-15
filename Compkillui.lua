@@ -2862,7 +2862,7 @@ do
 
     create("UIListLayout", {
         Parent = modeHolder,
-        FillDirection = Enum.FillDirection.Vertical,
+        FillDirection = Enum.FillDirection.Horizontal,
         Padding = UDim.new(0, 4),
         SortOrder = Enum.SortOrder.LayoutOrder,
     })
@@ -3522,7 +3522,7 @@ Render.createToggleRow = function(entry)
 
     create("UIListLayout", {
         Parent = leftHolder,
-        FillDirection = Enum.FillDirection.Vertical,
+        FillDirection = Enum.FillDirection.Horizontal,
         Padding = UDim.new(0, 5),
         VerticalAlignment = Enum.VerticalAlignment.Center,
         SortOrder = Enum.SortOrder.LayoutOrder,
@@ -3567,7 +3567,7 @@ Render.createToggleRow = function(entry)
 
     local rightLayout = create("UIListLayout", {
         Parent = rightHolder,
-        FillDirection = Enum.FillDirection.Vertical,
+        FillDirection = Enum.FillDirection.Horizontal,
         HorizontalAlignment = Enum.HorizontalAlignment.Right,
         VerticalAlignment = Enum.VerticalAlignment.Center,
         Padding = UDim.new(0, 4),
