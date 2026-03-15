@@ -1621,14 +1621,6 @@ local function slugify(text)
     return value ~= "" and value or "item"
 end
 
-local function normalizePreviewRole(role)
-    if role == nil or role == false then
-        return nil
-    end
-
-    return slugify(role)
-end
-
 local function copyArray(values)
     local copied = {}
     if type(values) ~= "table" then
@@ -4168,7 +4160,11 @@ end
 end
 
 local function resolvePreviewEntry(role, fallbackFlags)
-    local normalizedRole = normalizePreviewRole(role)
+    local normalizedRole
+    if role ~= nil and role ~= false then
+        normalizedRole = slugify(role)
+    end
+
     if normalizedRole and PreviewEntries[normalizedRole] then
         return PreviewEntries[normalizedRole]
     end
@@ -4183,7 +4179,11 @@ local function resolvePreviewEntry(role, fallbackFlags)
                 return EntryMap[fallbackFlag]
             end
 
-            local normalizedFallback = normalizePreviewRole(fallbackFlag)
+            local normalizedFallback
+            if fallbackFlag ~= nil and fallbackFlag ~= false then
+                normalizedFallback = slugify(fallbackFlag)
+            end
+
             if normalizedFallback and PreviewEntries[normalizedFallback] then
                 return PreviewEntries[normalizedFallback]
             end
@@ -5800,7 +5800,11 @@ local function registerEntry(entry)
     end
 
     entry.id = makeEntryId(entry.id or entry.flag or string.format("%s_%s_%s", entry.tab, entry.section, entry.name))
-    entry.espPreview = normalizePreviewRole(entry.espPreview)
+    if entry.espPreview ~= nil and entry.espPreview ~= false then
+        entry.espPreview = slugify(entry.espPreview)
+    else
+        entry.espPreview = nil
+    end
     entry.tags = mergeTags(entry.tags, { entry.kind }, { entry.section }, entry.subsection and { entry.subsection } or nil)
 
     if entry.kind == "toggle" then
