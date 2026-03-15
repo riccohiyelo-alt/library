@@ -960,7 +960,7 @@ WindowShell.sidebarDivider = create("Frame", {
     BackgroundColor3 = Theme.inline,
     Position = UDim2.fromOffset(SidebarWidth + 4, 6),
     Size = UDim2.new(0, 1, 1, -34),
-    BackgroundTransparency = 0.2,
+    BackgroundTransparency = 0.55,
     ZIndex = 13,
 })
 registerTheme("inline", WindowShell.sidebarDivider, "BackgroundColor3")
@@ -3334,7 +3334,7 @@ Layout.createTab = function(id, name, iconAsset, order)
         BackgroundColor3 = Theme.accent,
         Position = UDim2.new(0, 0, 0.5, 0),
         Size = UDim2.new(1, 0, 1, 0),
-        BackgroundTransparency = 0.92,
+        BackgroundTransparency = 0.965,
         ZIndex = 19,
     })
     registerTheme("accent", fill, "BackgroundColor3")
@@ -3344,8 +3344,8 @@ Layout.createTab = function(id, name, iconAsset, order)
         Parent = fill,
         BorderSizePixel = 0,
         BackgroundColor3 = Theme.accent,
-        Position = UDim2.fromOffset(0, 4),
-        Size = UDim2.new(0, 2, 1, -8),
+        Position = UDim2.fromOffset(0, 6),
+        Size = UDim2.new(0, 2, 1, -12),
         ZIndex = 20,
     })
     registerTheme("accent", activeBar, "BackgroundColor3")
@@ -3355,7 +3355,7 @@ Layout.createTab = function(id, name, iconAsset, order)
         BackgroundTransparency = 1,
         AnchorPoint = Vector2.new(0, 0.5),
         Position = UDim2.new(0, 10, 0.5, 0),
-        Size = UDim2.fromOffset(13, 13),
+        Size = UDim2.fromOffset(12, 12),
         Image = iconAsset,
         ImageColor3 = Theme.textDim,
         ZIndex = 20,
@@ -3369,7 +3369,7 @@ Layout.createTab = function(id, name, iconAsset, order)
         Size = UDim2.new(1, -32, 1, 0),
         Font = Enum.Font.GothamMedium,
         Text = name,
-        TextSize = 11,
+        TextSize = 10,
         TextXAlignment = Enum.TextXAlignment.Left,
         ZIndex = 20,
     }, false)
@@ -4247,12 +4247,12 @@ Layout.selectTab = function(id)
 
     for tabId, tab in pairs(Tabs) do
         local selected = tabId == id
-        tab.fill.BackgroundTransparency = selected and 0.9 or 1
+        tab.fill.BackgroundTransparency = selected and 0.965 or 1
         tab.fill.Visible = selected
         if tab.activeBar then
             tab.activeBar.Visible = selected
         end
-        tab.icon.ImageColor3 = selected and Theme.text or Theme.textDim
+        tab.icon.ImageColor3 = selected and Theme.accentGlow or Theme.textDim
         tab.label.TextColor3 = selected and Theme.text or Theme.textDim
         tab.page.Visible = selected
         tab.page.Position = UDim2.fromOffset(0, 0)
