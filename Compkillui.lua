@@ -4385,6 +4385,7 @@ Render.createESPPreviewRow = function(entry)
     end
 
     local previewPartDefaults = {}
+    local previewOverlayLayers = {}
 
     for _, descendant in ipairs(character:GetDescendants()) do
         if descendant:IsA("Animator") then
@@ -4405,6 +4406,90 @@ Render.createESPPreviewRow = function(entry)
     end
 
     character.Parent = viewport
+    local headPart = character:FindFirstChild("Head", true)
+
+    local function prepareOverlayPart(part)
+        for _, child in ipairs(part:GetDescendants()) do
+            if child:IsA("Decal")
+                or child:IsA("Texture")
+                or child:IsA("SurfaceAppearance")
+                or child:IsA("Highlight")
+                or child:IsA("SelectionBox")
+                or child:IsA("Script")
+                or child:IsA("LocalScript") then
+                child:Destroy()
+            elseif child:IsA("SpecialMesh") then
+                pcall(function()
+                    child.TextureId = ""
+                end)
+            end
+        end
+
+        if part:IsA("MeshPart") then
+            pcall(function()
+                part.TextureID = ""
+            end)
+        end
+
+        part.Anchored = true
+        part.CanCollide = false
+        part.CastShadow = false
+        part.AssemblyLinearVelocity = Vector3.zero
+        part.AssemblyAngularVelocity = Vector3.zero
+
+        pcall(function()
+            part.CanTouch = false
+        end)
+
+        pcall(function()
+            part.CanQuery = false
+        end)
+    end
+
+    local function createPreviewOverlayLayer(name)
+        return {
+            model = create("Model", {
+                Parent = viewport,
+                Name = "NeverPastePreview" .. name .. "_" .. math.random(10000, 99999),
+            }),
+            parts = {},
+        }
+    end
+
+    local function clonePreviewOverlayPart(layer, sourcePart)
+        local clone = sourcePart:Clone()
+        prepareOverlayPart(clone)
+        clone.Parent = layer.model
+
+        local meshData = {}
+        for _, child in ipairs(clone:GetDescendants()) do
+            if child:IsA("SpecialMesh") then
+                meshData[#meshData + 1] = {
+                    mesh = child,
+                    scale = child.Scale,
+                }
+            end
+        end
+
+        layer.parts[#layer.parts + 1] = {
+            source = sourcePart,
+            part = clone,
+            size = sourcePart.Size,
+            meshes = meshData,
+        }
+    end
+
+    previewOverlayLayers.chams = createPreviewOverlayLayer("Chams")
+    previewOverlayLayers.highlightFill = createPreviewOverlayLayer("HighlightFill")
+    previewOverlayLayers.highlightOutline = createPreviewOverlayLayer("HighlightOutline")
+
+    for _, descendant in ipairs(character:GetDescendants()) do
+        if descendant:IsA("BasePart") and descendant.Name ~= "HumanoidRootPart" then
+            clonePreviewOverlayPart(previewOverlayLayers.chams, descendant)
+            clonePreviewOverlayPart(previewOverlayLayers.highlightFill, descendant)
+            clonePreviewOverlayPart(previewOverlayLayers.highlightOutline, descendant)
+        end
+    end
 
     local previewCharacterPivot = CFrame.new(0, -0.25, -6) * CFrame.Angles(0, math.rad(180), 0)
 
@@ -4634,17 +4719,6 @@ Render.createESPPreviewRow = function(entry)
     applyCorner(objects.headDot, 8)
     applyStroke(objects.headDot, Theme.outline, 1, 0)
 
-    objects.highlight = create("Highlight", {
-        Parent = viewport,
-        Adornee = character,
-        DepthMode = Enum.HighlightDepthMode.AlwaysOnTop,
-        Enabled = false,
-        FillColor = Theme.accent,
-        OutlineColor = Theme.text,
-        FillTransparency = 0.7,
-        OutlineTransparency = 0,
-    })
-
     local function resolvePreviewChamMaterial()
         local materialName = string.lower(tostring(getPreviewValue("chams_material", "Chams_Material", "Plastic") or "Plastic"))
         local materialMap = {
@@ -4677,6 +4751,41 @@ Render.createESPPreviewRow = function(entry)
         frame.Rotation = math.deg(math.atan2(delta.Y, delta.X))
     end
 
+    local function updateOverlayLayer(layer, enabled, color, transparency, material, sizeOffset, meshOffset)
+        for _, data in ipairs(layer.parts) do
+            local source = data.source
+            local part = data.part
+            local visible = enabled
+                and source
+                and source.Parent
+                and part
+                and part.Parent
+                and source.Transparency < 1
+
+            if visible then
+                part.CFrame = source.CFrame
+                part.Color = color
+                part.Material = material
+                part.Transparency = transparency
+                part.Size = Vector3.new(
+                    math.max(0.05, source.Size.X + sizeOffset.X),
+                    math.max(0.05, source.Size.Y + sizeOffset.Y),
+                    math.max(0.05, source.Size.Z + sizeOffset.Z)
+                )
+
+                for _, mesh in ipairs(data.meshes) do
+                    mesh.mesh.Scale = Vector3.new(
+                        math.max(0.01, mesh.scale.X + meshOffset.X),
+                        math.max(0.01, mesh.scale.Y + meshOffset.Y),
+                        math.max(0.01, mesh.scale.Z + meshOffset.Z)
+                    )
+                end
+            else
+                part.Transparency = 1
+            end
+        end
+    end
+
     local function updateChamPreview(enabled)
         local chamColor = getPreviewColor("chams", "Chams", Theme.accent)
         local chamTransparency = math.clamp(getPreviewNumber("chams_transparency", "Chams_Transparency", 0.2), 0, 1)
@@ -4684,30 +4793,48 @@ Render.createESPPreviewRow = function(entry)
 
         for part, defaults in pairs(previewPartDefaults) do
             if part and part.Parent then
-                if enabled and part.Name ~= "HumanoidRootPart" then
-                    part.Material = chamMaterial
-                    part.Color = chamColor
-                    part.Transparency = chamTransparency
-                else
-                    part.Material = defaults.Material
-                    part.Color = defaults.Color
-                    part.Transparency = defaults.Transparency
-                end
+                part.Material = defaults.Material
+                part.Color = defaults.Color
+                part.Transparency = defaults.Transparency
             end
         end
+
+        updateOverlayLayer(
+            previewOverlayLayers.chams,
+            enabled,
+            chamColor,
+            chamTransparency,
+            chamMaterial,
+            Vector3.zero,
+            Vector3.zero
+        )
     end
 
     local function updateHighlightPreview(enabled)
-        objects.highlight.Enabled = enabled
-        if not enabled then
-            return
-        end
-
         local highlightColor = getPreviewColor("highlight", "Highlight", Theme.accent)
-        objects.highlight.FillColor = highlightColor
-        objects.highlight.OutlineColor = highlightColor:Lerp(Color3.new(1, 1, 1), 0.35)
-        objects.highlight.FillTransparency = math.clamp(getPreviewNumber("highlight_fill_transparency", "Highlight_Fill_Transparency", 0.72), 0, 1)
-        objects.highlight.OutlineTransparency = math.clamp(getPreviewNumber("highlight_outline_transparency", "Highlight_Outline_Transparency", 0), 0, 1)
+        local outlineColor = highlightColor:Lerp(Color3.new(1, 1, 1), 0.35)
+        local fillTransparency = math.clamp(getPreviewNumber("highlight_fill_transparency", "Highlight_Fill_Transparency", 0.72), 0, 1)
+        local outlineTransparency = math.clamp(getPreviewNumber("highlight_outline_transparency", "Highlight_Outline_Transparency", 0), 0, 1)
+
+        updateOverlayLayer(
+            previewOverlayLayers.highlightFill,
+            enabled,
+            highlightColor,
+            fillTransparency,
+            Enum.Material.Plastic,
+            Vector3.new(0.01, 0.01, 0.01),
+            Vector3.new(0.01, 0.01, 0.01)
+        )
+
+        updateOverlayLayer(
+            previewOverlayLayers.highlightOutline,
+            enabled,
+            outlineColor,
+            outlineTransparency,
+            Enum.Material.Neon,
+            Vector3.new(0.08, 0.08, 0.08),
+            Vector3.new(0.04, 0.04, 0.04)
+        )
     end
 
     local function updateOverlayVisuals(enabled)
@@ -4735,10 +4862,19 @@ Render.createESPPreviewRow = function(entry)
         setLineFrame(objects.snapline, screenBottomCenter, bottomCenter, getPreviewColor("snapline", "Snapline", Theme.text), 2, snaplineEnabled)
 
         local headDotEnabled = enabled and getPreviewState("head_dot", "Head_Dot")
-        objects.headDot.Visible = headDotEnabled
-        if headDotEnabled then
+        local headViewportPoint
+
+        if headDotEnabled and headPart and headPart.Parent then
+            local projected, onScreen = camera:WorldToViewportPoint(headPart.Position)
+            if onScreen then
+                headViewportPoint = Vector2.new(projected.X, projected.Y) - overlayAbsolutePosition
+            end
+        end
+
+        objects.headDot.Visible = headDotEnabled and headViewportPoint ~= nil
+        if objects.headDot.Visible then
             objects.headDot.BackgroundColor3 = getPreviewColor("head_dot", "Head_Dot", Theme.accent)
-            objects.headDot.Position = UDim2.fromOffset(topCenter.X, topCenter.Y - 10)
+            objects.headDot.Position = UDim2.fromOffset(headViewportPoint.X, headViewportPoint.Y)
         end
     end
 
@@ -6572,5 +6708,4 @@ MenuState.introDone = false
 MenuState.visible = false
 
 return Atlanta
-
 
