@@ -1621,6 +1621,14 @@ local function slugify(text)
     return value ~= "" and value or "item"
 end
 
+local function normalizePreviewRole(role)
+    if role == nil or role == false then
+        return nil
+    end
+
+    return slugify(role)
+end
+
 local function copyArray(values)
     local copied = {}
     if type(values) ~= "table" then
@@ -4157,14 +4165,6 @@ Render.createColorRow = function(entry)
     end)
 end
 
-end
-
-local function normalizePreviewRole(role)
-    if role == nil or role == false then
-        return nil
-    end
-
-    return slugify(role)
 end
 
 local function resolvePreviewEntry(role, fallbackFlags)
