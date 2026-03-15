@@ -4188,6 +4188,14 @@ local function getFlagValue(flagName)
     return entry and entry.value or ""
 end
 
+local function getFlagNumber(flagName, defaultValue)
+    local value = tonumber(getFlagValue(flagName))
+    if value == nil then
+        return defaultValue
+    end
+    return value
+end
+
 Render.createESPPreviewRow = function(entry)
     local previewSize = Vector2.new(300, 325)
     local previewGui = create("ScreenGui", {
@@ -4312,12 +4320,19 @@ Render.createESPPreviewRow = function(entry)
         humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
     end
 
+    local previewPartDefaults = {}
+
     for _, descendant in ipairs(character:GetDescendants()) do
         if descendant:IsA("Animator") then
             descendant:Destroy()
         elseif descendant:IsA("Motor6D") then
             descendant.Transform = CFrame.new()
         elseif descendant:IsA("BasePart") then
+            previewPartDefaults[descendant] = {
+                Material = descendant.Material,
+                Color = descendant.Color,
+                Transparency = descendant.Transparency,
+            }
             descendant.Anchored = true
             descendant.CanCollide = false
             descendant.AssemblyLinearVelocity = Vector3.zero
@@ -4533,6 +4548,136 @@ Render.createESPPreviewRow = function(entry)
         LineJoinMode = Enum.LineJoinMode.Miter,
     })
 
+    objects.snapline = create("Frame", {
+        Parent = overlay,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = Theme.accent,
+        BorderSizePixel = 0,
+        Size = UDim2.fromOffset(0, 2),
+        Visible = false,
+        ZIndex = 36,
+    })
+
+    objects.headDot = create("Frame", {
+        Parent = overlay,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = Theme.accent,
+        BorderSizePixel = 0,
+        Size = UDim2.fromOffset(8, 8),
+        Visible = false,
+        ZIndex = 37,
+    })
+    applyCorner(objects.headDot, 8)
+    applyStroke(objects.headDot, Theme.outline, 1, 0)
+
+    objects.highlight = create("Highlight", {
+        Parent = viewport,
+        Adornee = character,
+        DepthMode = Enum.HighlightDepthMode.AlwaysOnTop,
+        Enabled = false,
+        FillColor = Theme.accent,
+        OutlineColor = Theme.text,
+        FillTransparency = 0.7,
+        OutlineTransparency = 0,
+    })
+
+    local function resolvePreviewChamMaterial()
+        local materialName = string.lower(tostring(getFlagValue("Chams_Material") or "Plastic"))
+        local materialMap = {
+            ["plastic"] = Enum.Material.Plastic,
+            ["force field"] = Enum.Material.ForceField,
+            ["forcefield"] = Enum.Material.ForceField,
+            ["neon"] = Enum.Material.Neon,
+        }
+
+        return materialMap[materialName] or Enum.Material.Plastic
+    end
+
+    local function setLineFrame(frame, fromPoint, toPoint, color, thickness, visible)
+        if not visible then
+            frame.Visible = false
+            return
+        end
+
+        local delta = toPoint - fromPoint
+        local length = delta.Magnitude
+        if length <= 0.001 then
+            frame.Visible = false
+            return
+        end
+
+        frame.Visible = true
+        frame.BackgroundColor3 = color
+        frame.Position = UDim2.fromOffset((fromPoint.X + toPoint.X) * 0.5, (fromPoint.Y + toPoint.Y) * 0.5)
+        frame.Size = UDim2.fromOffset(length, thickness)
+        frame.Rotation = math.deg(math.atan2(delta.Y, delta.X))
+    end
+
+    local function updateChamPreview(enabled)
+        local chamColor = getFlagColor("Chams")
+        local chamTransparency = math.clamp(getFlagNumber("Chams_Transparency", 0.2), 0, 1)
+        local chamMaterial = resolvePreviewChamMaterial()
+
+        for part, defaults in pairs(previewPartDefaults) do
+            if part and part.Parent then
+                if enabled and part.Name ~= "HumanoidRootPart" then
+                    part.Material = chamMaterial
+                    part.Color = chamColor
+                    part.Transparency = chamTransparency
+                else
+                    part.Material = defaults.Material
+                    part.Color = defaults.Color
+                    part.Transparency = defaults.Transparency
+                end
+            end
+        end
+    end
+
+    local function updateHighlightPreview(enabled)
+        objects.highlight.Enabled = enabled
+        if not enabled then
+            return
+        end
+
+        local highlightColor = getFlagColor("Highlight")
+        objects.highlight.FillColor = highlightColor
+        objects.highlight.OutlineColor = highlightColor:Lerp(Color3.new(1, 1, 1), 0.35)
+        objects.highlight.FillTransparency = math.clamp(getFlagNumber("Highlight_Fill_Transparency", 0.72), 0, 1)
+        objects.highlight.OutlineTransparency = math.clamp(getFlagNumber("Highlight_Outline_Transparency", 0), 0, 1)
+    end
+
+    local function updateOverlayVisuals(enabled)
+        local overlayAbsolutePosition = overlay.AbsolutePosition
+        local overlayAbsoluteSize = overlay.AbsoluteSize
+        local holderAbsolutePosition = holder.AbsolutePosition
+        local holderAbsoluteSize = holder.AbsoluteSize
+
+        local topCenter = Vector2.new(
+            holderAbsolutePosition.X + (holderAbsoluteSize.X * 0.5),
+            holderAbsolutePosition.Y
+        ) - overlayAbsolutePosition
+
+        local bottomCenter = Vector2.new(
+            holderAbsolutePosition.X + (holderAbsoluteSize.X * 0.5),
+            holderAbsolutePosition.Y + holderAbsoluteSize.Y
+        ) - overlayAbsolutePosition
+
+        local screenBottomCenter = Vector2.new(
+            overlayAbsoluteSize.X * 0.5,
+            overlayAbsoluteSize.Y - 10
+        )
+
+        local snaplineEnabled = enabled and getFlagState("Snapline")
+        setLineFrame(objects.snapline, screenBottomCenter, bottomCenter, getFlagColor("Snapline"), 2, snaplineEnabled)
+
+        local headDotEnabled = enabled and getFlagState("Head_Dot")
+        objects.headDot.Visible = headDotEnabled
+        if headDotEnabled then
+            objects.headDot.BackgroundColor3 = getFlagColor("Head_Dot")
+            objects.headDot.Position = UDim2.fromOffset(topCenter.X, topCenter.Y - 10)
+        end
+    end
+
     local dockedToWindow = true
     local previewDragging = false
     local previewDragInput
@@ -4639,6 +4784,10 @@ Render.createESPPreviewRow = function(entry)
         for index = 1, 8 do
             objects["corner" .. index].inner.BackgroundColor3 = boxColor
         end
+
+        updateChamPreview(enabled and getFlagState("Chams"))
+        updateHighlightPreview(enabled and getFlagState("Highlight"))
+        updateOverlayVisuals(enabled)
 
         if enabled and getFlagState("Boxes") then
             if getFlagValue("Box_Type") == "Full" then
