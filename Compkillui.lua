@@ -4260,8 +4260,8 @@ Render.createESPPreviewRow = function(entry)
 
     local camera = create("Camera", {
         Parent = Services.Workspace,
-        FieldOfView = 70.00022888183594,
-        CameraType = Enum.CameraType.Track,
+        FieldOfView = 50,
+        CameraType = Enum.CameraType.Scriptable,
         Focus = CFrame.new(0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1),
         CFrame = CFrame.new(0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1),
         Name = "NeverPastePreviewCamera_" .. math.random(10000, 99999),
@@ -4269,14 +4269,89 @@ Render.createESPPreviewRow = function(entry)
 
     viewport.CurrentCamera = camera
 
-    LocalPlayer.Character.Archivable = true
-    local character = LocalPlayer.Character:Clone()
-    if character:FindFirstChild("Animate") then
-        character.Animate:Destroy()
+    local currentCharacter = LocalPlayer.Character
+    if currentCharacter then
+        currentCharacter.Archivable = true
     end
+
+    local character = currentCharacter and currentCharacter:Clone()
+    if not character then
+        return
+    end
+
+    local animateScript = character:FindFirstChild("Animate")
+    if animateScript then
+        animateScript:Destroy()
+    end
+
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+
+    if humanoid then
+        pcall(function()
+            for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
+                track:Stop(0)
+            end
+        end)
+
+        humanoid.AutoRotate = false
+        humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+    end
+
+    for _, descendant in ipairs(character:GetDescendants()) do
+        if descendant:IsA("Animator") then
+            descendant:Destroy()
+        elseif descendant:IsA("Motor6D") then
+            descendant.Transform = CFrame.new()
+        elseif descendant:IsA("BasePart") then
+            descendant.Anchored = true
+            descendant.CanCollide = false
+            descendant.AssemblyLinearVelocity = Vector3.zero
+            descendant.AssemblyAngularVelocity = Vector3.zero
+        end
+    end
+
     character.Parent = viewport
-    
-    camera.CameraSubject = character
+
+    local previewCharacterPivot = CFrame.new(0, -0.25, -6) * CFrame.Angles(0, math.rad(180), 0)
+
+    local function updatePreviewRig()
+        if not character.Parent then
+            return
+        end
+
+        character:PivotTo(previewCharacterPivot)
+
+        for _, descendant in ipairs(character:GetDescendants()) do
+            if descendant:IsA("Motor6D") then
+                descendant.Transform = CFrame.new()
+            end
+        end
+
+        if humanoid then
+            humanoid.AutoRotate = false
+            pcall(function()
+                humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+            end)
+        end
+    end
+
+    local function updatePreviewCamera()
+        if not character.Parent then
+            return
+        end
+
+        local boundsCFrame, boundsSize = character:GetBoundingBox()
+        local focus = boundsCFrame.Position + Vector3.new(0, math.clamp(boundsSize.Y * 0.08, 0.15, 0.4), 0)
+        local cameraDistance = math.max(boundsSize.Y * 0.9, boundsSize.X * 2, 4.5)
+        local cameraHeight = math.clamp(boundsSize.Y * 0.05, 0.1, 0.3)
+        local cameraPosition = focus + Vector3.new(0, cameraHeight, cameraDistance)
+
+        camera.CFrame = CFrame.lookAt(cameraPosition, focus)
+        camera.Focus = CFrame.new(focus)
+    end
+
+    updatePreviewRig()
+    updatePreviewCamera()
 
     local holder = create("Frame", {
         Parent = overlay,
@@ -4568,10 +4643,8 @@ Render.createESPPreviewRow = function(entry)
             return
         end
 
-        if character.PrimaryPart then
-            character:SetPrimaryPartCFrame(CFrame.new(Vector3.new(0, -0.25, -6)) * CFrame.Angles(0, math.rad(180), 0))
-        end
-
+        updatePreviewRig()
+        updatePreviewCamera()
         updatePreviewPosition()
         updateHealthBar()
         refreshPreview()
