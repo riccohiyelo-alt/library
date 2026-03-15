@@ -845,6 +845,8 @@ Window.AnchorPoint = Vector2.new(0.5, 0.5)
 Window.Position = DefaultWindowPosition
 Window.Visible = false
 Window.BackgroundTransparency = 1
+WindowShell.inline.BackgroundTransparency = 0.16
+WindowShell.background.BackgroundTransparency = 0.46
 
 local WindowScale = create("UIScale", {
     Parent = Window,
@@ -954,13 +956,32 @@ WindowShell.settingsButton = create("ImageButton", {
 })
 registerTheme("textDim", WindowShell.settingsButton, "ImageColor3")
 
+WindowShell.sidebarBackdrop = create("Frame", {
+    Parent = WindowShell.background,
+    BorderSizePixel = 0,
+    BackgroundColor3 = Theme.section,
+    Position = UDim2.fromOffset(4, 4),
+    Size = UDim2.new(0, SidebarWidth, 1, -30),
+    BackgroundTransparency = 0.82,
+    ZIndex = 12,
+})
+registerTheme("section", WindowShell.sidebarBackdrop, "BackgroundColor3")
+
+WindowShell.sidebarBackdropGradient = applyGradient(
+    WindowShell.sidebarBackdrop,
+    Theme.high,
+    Theme.low,
+    90
+)
+registerTheme("contrast", WindowShell.sidebarBackdropGradient, "Color")
+
 WindowShell.sidebarDivider = create("Frame", {
     Parent = WindowShell.background,
     BorderSizePixel = 0,
     BackgroundColor3 = Theme.inline,
     Position = UDim2.fromOffset(SidebarWidth + 4, 6),
     Size = UDim2.new(0, 1, 1, -34),
-    BackgroundTransparency = 0.85,
+    BackgroundTransparency = 0.94,
     ZIndex = 13,
 })
 registerTheme("inline", WindowShell.sidebarDivider, "BackgroundColor3")
