@@ -1031,7 +1031,7 @@ Atlanta.__index = Atlanta
 local WindowMethods = {}
 WindowMethods.__index = WindowMethods
 
-local MenuMethods = {}
+local CategoryMethods = {}\nCategoryMethods.__index = CategoryMethods\nlocal TabMethods = {}\nTabMethods.__index = TabMethods
 MenuMethods.__index = MenuMethods
 
 local SectionMethods = {}
@@ -3513,42 +3513,15 @@ end
 
 local function getNavigationItems(definition)
     local items = {}
-
-    for _, sectionMeta in ipairs(definition.sectionOrder or {}) do
-        if #sectionMeta.subsections > 0 then
-            for _, subsectionMeta in ipairs(sectionMeta.subsections) do
-                items[#items + 1] = {
-                    id = subsectionMeta.id,
-                    tabId = definition.id,
-                    sectionName = sectionMeta.name,
-                    subsectionName = subsectionMeta.name,
-                    label = subsectionMeta.name,
-                    kind = "subsection",
-                }
-            end
-        else
-            items[#items + 1] = {
-                id = string.format("%s::section::%s", definition.id, sectionMeta.name),
-                tabId = definition.id,
-                sectionName = sectionMeta.name,
-                subsectionName = nil,
-                label = sectionMeta.name,
-                kind = "section",
-            }
-        end
-    end
-
-    if #items == 0 then
-        items[1] = {
-            id = string.format("%s::root", definition.id),
-            tabId = definition.id,
-            sectionName = nil,
-            subsectionName = nil,
-            label = definition.name,
-            kind = "root",
+    for _, tabMeta in ipairs(definition.tabs or {}) do
+        items[#items + 1] = {
+            id = tabMeta.id,
+            tabId = tabMeta.id,
+            label = tabMeta.name,
+            icon = tabMeta.icon,
+            kind = "tab"
         }
     end
-
     return items
 end
 
@@ -3607,56 +3580,14 @@ local function updateSidebarButtons()
             buttonData.indicator.BackgroundTransparency = selected and 0.06 or 1
             buttonData.indicator.Size = selected and UDim2.fromOffset(2, 12) or UDim2.fromOffset(2, 0)
             buttonData.label.TextColor3 = selected and Theme.text or Theme.textDim
+            if buttonData.iconLabel then
+                buttonData.iconLabel.ImageColor3 = selected and Theme.text or Theme.textDim
+            end
         end
     end
 end
 
-local function refreshSectionHighlights()
-    local selectedItem = getNavigationItemById(NavigationState.selectedItem)
-
-    for _, section in pairs(Sections) do
-        local sectionSelected = selectedItem
-            and selectedItem.tabId == section.tabId
-            and (selectedItem.sectionName == nil or selectedItem.sectionName == section.name)
-
-        if section.surface then
-            tween(section.surface, 0.16, {
-                BackgroundTransparency = sectionSelected and 0.2 or 0.32,
-            }, Enum.EasingStyle.Quad)
-        end
-
-        if section.stroke then
-            section.stroke.Transparency = sectionSelected and 0.54 or 0.72
-        end
-
-        if section.headerAccent then
-            section.headerAccent.BackgroundTransparency = sectionSelected and 0.08 or 0.8
-        end
-
-        if section.title then
-            section.title.TextColor3 = sectionSelected and Theme.text or Theme.textDim
-        end
-    end
-
-    for key, header in pairs(SubsectionHeaders) do
-        local subsectionSelected = selectedItem
-            and selectedItem.tabId == header.tabId
-            and selectedItem.sectionName == header.sectionName
-            and selectedItem.subsectionName == header.subsectionName
-
-        if header.label then
-            header.label.TextColor3 = subsectionSelected and Theme.text or Theme.textDim
-        end
-
-        if header.accent then
-            header.accent.BackgroundTransparency = subsectionSelected and 0.14 or 0.86
-        end
-
-        if header.divider then
-            header.divider.BackgroundTransparency = subsectionSelected and 0.82 or 0.92
-        end
-    end
-end
+local function refreshSectionHighlights() end
 Layout.refreshSectionHighlights = refreshSectionHighlights
 Layout.updateSidebarButtons = updateSidebarButtons
 
@@ -3720,8 +3651,36 @@ Layout.refreshSidebarNavigation = function()
                 BorderSizePixel = 0,
                 BackgroundColor3 = Theme.accent,
                 BackgroundTransparency = 1,
-                ZIndex = 18,
+                ZIndex = 17,
             })
+            registerTheme("accent", indicator, "BackgroundColor3")
+
+            local iconLabel
+            if item.icon then
+                iconLabel = create("ImageLabel", {
+                    Parent = surface,
+                    BackgroundTransparency = 1,
+                    Position = UDim2.fromOffset(8, math.floor((LayoutTokens.sidebar.itemHeight - 14) / 2)),
+                    Size = UDim2.fromOffset(14, 14),
+                    Image = item.icon,
+                    ImageColor3 = Theme.textDim,
+                    ZIndex = 18,
+                })
+                registerTheme("textDim", iconLabel, "ImageColor3")
+            end
+
+            local label = createThemedText(surface, {
+                Parent = surface,
+                BackgroundTransparency = 1,
+                Position = UDim2.fromOffset(item.icon and 28 or 10, 0),
+                Size = UDim2.new(1, item.icon and -28 or -10, 1, 0),
+                Font = Enum.Font.GothamMedium,
+                Text = item.label,
+                TextSize = 12,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextYAlignment = Enum.TextYAlignment.Center,
+                ZIndex = 18,
+            }, true)
             registerTheme("accent", indicator, "BackgroundColor3")
 
             local label = createThemedText(surface, {
@@ -6027,7 +5986,7 @@ function SectionMethods:AddKeybind(config)
     return registerEntry(entry)
 end
 
-function MenuMethods:AddSection(config)
+function TabMethods:AddSection(config)
     config = config or {}
 
     local section = setmetatable({
@@ -6040,8 +5999,7 @@ function MenuMethods:AddSection(config)
     }, SectionMethods)
 
     local uiSection = Layout.getSection(section.tabId, section.column, section.sectionName)
-    Layout.registerSectionNavigation(section.tabId, section.sectionName, section.column)
-    if config.Height then
+        if config.Height then
         uiSection.maxContentHeight = config.Height
         uiSection.fixedHeight = true
         Layout.updateShellSize(uiSection, false)
@@ -6053,22 +6011,51 @@ function MenuMethods:AddSection(config)
     return section
 end
 
-function WindowMethods:AddMenu(config)
+function WindowMethods:AddCategory(config)
     config = config or {}
 
-    local name = config.Name or string.format("Menu %d", #TabDefinitions + 1)
+    local name = config.Name or string.format("Category %d", #TabDefinitions + 1)
     local id = makeTabId(config.Id or name)
 
     TabDefinitions[#TabDefinitions + 1] = {
         id = id,
         name = name,
-        icon = resolveIcon(config.Icon),
         order = #TabDefinitions + 1,
-        sectionMeta = {},
-        sectionOrder = {},
+        tabs = {},
     }
 
-    Layout.createTab(id, name, resolveIcon(config.Icon), #TabDefinitions)
+    Layout.reflowTabButtons()
+
+    return setmetatable({
+        id = id,
+        name = name,
+    }, CategoryMethods)
+end
+
+function CategoryMethods:AddTab(config)
+    config = config or {}
+    
+    local name = config.Name or "Tab"
+    local id = makeTabId(string.format("%s_%s", self.id, name))
+    
+    local categoryDef
+    for _, def in ipairs(TabDefinitions) do
+        if def.id == self.id then
+            categoryDef = def
+            break
+        end
+    end
+    
+    Layout.createTab(id, name, resolveIcon(config.Icon), #categoryDef.tabs + 1)
+    
+    if categoryDef then
+        categoryDef.tabs[#categoryDef.tabs + 1] = {
+            id = id,
+            name = name,
+            icon = resolveIcon(config.Icon),
+        }
+    end
+
     Layout.reflowTabButtons()
 
     if not DefaultTabId then
@@ -6082,7 +6069,8 @@ function WindowMethods:AddMenu(config)
     return setmetatable({
         id = id,
         name = name,
-    }, MenuMethods)
+        categoryId = self.id,
+    }, TabMethods)
 end
 
 end
@@ -6550,7 +6538,7 @@ Atlanta.Utilities = {
 -- Components
 Atlanta.Components = {
     Window = WindowMethods,
-    Menu = MenuMethods,
+    Category = CategoryMethods,\n    Tab = TabMethods,
     Section = SectionMethods,
     Control = ControlMethods,
 }
