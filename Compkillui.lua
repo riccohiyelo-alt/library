@@ -3593,6 +3593,9 @@ local function resolveDefaultNavigationItemId(tabId)
     return nil
 end
 
+Layout.resolveNavigationItemById = resolveNavigationItemById
+Layout.resolveDefaultNavigationItemId = resolveDefaultNavigationItemId
+
 local function updateSidebarButtons()
     for _, buttonData in pairs(NavigationState.buttons) do
         if buttonData.groupLabel then
@@ -4850,11 +4853,11 @@ Layout.selectTab = function(id, preserveNavigationItem)
     CurrentTab = id
 
     if not preserveNavigationItem then
-        NavigationState.selectedItem = resolveDefaultNavigationItemId(id)
+        NavigationState.selectedItem = Layout.resolveDefaultNavigationItemId(id)
     elseif NavigationState.selectedItem then
-        local selectedItem = resolveNavigationItemById(NavigationState.selectedItem)
+        local selectedItem = Layout.resolveNavigationItemById(NavigationState.selectedItem)
         if not selectedItem or selectedItem.tabId ~= id then
-            NavigationState.selectedItem = resolveDefaultNavigationItemId(id)
+            NavigationState.selectedItem = Layout.resolveDefaultNavigationItemId(id)
         end
     end
 
@@ -4864,14 +4867,19 @@ Layout.selectTab = function(id, preserveNavigationItem)
         tab.page.Position = UDim2.fromOffset(0, 0)
     end
 
-    local selectedItem = resolveNavigationItemById(NavigationState.selectedItem)
+    local selectedItem = Layout.resolveNavigationItemById(NavigationState.selectedItem)
     local currentTab = Tabs[id]
     if currentTab and currentTab.pageSubtitle then
         currentTab.pageSubtitle.Text = selectedItem and selectedItem.label or "structured layout"
     end
 
-    updateSidebarButtons()
-    refreshSectionHighlights()
+    if Layout.updateSidebarButtons then
+        Layout.updateSidebarButtons()
+    end
+
+    if Layout.refreshSectionHighlights then
+        Layout.refreshSectionHighlights()
+    end
 
     task.defer(function()
         for columnIndex = 1, 3 do
