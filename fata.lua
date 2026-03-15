@@ -943,36 +943,39 @@ WindowShell.settingsButton = create("ImageButton", {
 })
 registerTheme("textDim", WindowShell.settingsButton, "ImageColor3")
 
-local SidebarShell = addShell(
-    WindowShell.background,
-    UDim2.new(0, SidebarWidth, 1, -8),
-    UDim2.fromOffset(4, 4),
-    false,
-    0,
-    12
-)
-SidebarShell.outline.BackgroundTransparency = 0.48
-SidebarShell.inline.BackgroundTransparency = 0.7
-SidebarShell.background.BackgroundTransparency = 0.92
-
-WindowShell.sidebarTint = create("Frame", {
-    Parent = SidebarShell.background,
+local SidebarShell = {}
+SidebarShell.outline = create("Frame", {
+    Parent = WindowShell.background,
     BorderSizePixel = 0,
-    BackgroundColor3 = Theme.section,
-    Position = UDim2.fromOffset(0, 0),
-    Size = UDim2.new(1, 0, 1, 0),
+    BackgroundColor3 = Theme.outline,
+    Position = UDim2.fromOffset(4, 4),
+    Size = UDim2.new(0, SidebarWidth, 1, -8),
+    BackgroundTransparency = 0.72,
+    ZIndex = 12,
+})
+registerTheme("outline", SidebarShell.outline, "BackgroundColor3")
+
+SidebarShell.background = create("Frame", {
+    Parent = SidebarShell.outline,
+    BorderSizePixel = 0,
+    BackgroundColor3 = Theme.inline,
+    Position = UDim2.fromOffset(1, 1),
+    Size = UDim2.new(1, -2, 1, -2),
     BackgroundTransparency = 1,
+    ZIndex = 13,
+})
+registerTheme("inline", SidebarShell.background, "BackgroundColor3")
+
+WindowShell.sidebarDivider = create("Frame", {
+    Parent = SidebarShell.outline,
+    BorderSizePixel = 0,
+    BackgroundColor3 = Theme.outline,
+    Position = UDim2.new(1, -1, 0, 0),
+    Size = UDim2.new(0, 1, 1, 0),
+    BackgroundTransparency = 0.2,
     ZIndex = 14,
 })
-registerTheme("section", WindowShell.sidebarTint, "BackgroundColor3")
-
-WindowShell.sidebarTintGradient = applyGradient(
-    WindowShell.sidebarTint,
-    Theme.sectionHigh,
-    Theme.sectionLow,
-    90
-)
-registerTheme("sectionContrast", WindowShell.sidebarTintGradient, "Color")
+registerTheme("outline", WindowShell.sidebarDivider, "BackgroundColor3")
 
 WindowShell.sidebarTitle = createThemedText(SidebarShell.background, {
     Parent = SidebarShell.background,
