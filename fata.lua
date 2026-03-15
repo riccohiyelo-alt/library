@@ -846,7 +846,7 @@ Window.Position = DefaultWindowPosition
 Window.Visible = false
 Window.BackgroundTransparency = 1
 WindowShell.inline.BackgroundTransparency = 0.16
-WindowShell.background.BackgroundTransparency = 0.46
+WindowShell.background.BackgroundTransparency = 1
 
 local WindowScale = create("UIScale", {
     Parent = Window,
@@ -901,19 +901,6 @@ WindowShell.header = create("Frame", {
     ZIndex = 14,
 })
 
-WindowShell.sidebarTitle = createThemedText(WindowShell.background, {
-    Parent = WindowShell.background,
-    BackgroundTransparency = 1,
-    Position = UDim2.fromOffset(SidebarPadding, 6),
-    Size = UDim2.new(0, SidebarWidth - (SidebarPadding * 2), 0, SidebarTitleHeight),
-    Font = Enum.Font.GothamBold,
-    Text = "NeverPaste",
-    TextSize = 18,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    TextYAlignment = Enum.TextYAlignment.Center,
-    ZIndex = 14,
-}, false)
-
 WindowShell.titleLabel = createThemedText(WindowShell.header, {
     Parent = WindowShell.header,
     BackgroundTransparency = 1,
@@ -958,14 +945,15 @@ registerTheme("textDim", WindowShell.settingsButton, "ImageColor3")
 
 local SidebarShell = addShell(
     WindowShell.background,
-    UDim2.new(0, SidebarWidth, 1, -(SidebarTitleHeight + 42)),
-    UDim2.fromOffset(4, SidebarTitleHeight + 12),
+    UDim2.new(0, SidebarWidth, 1, -8),
+    UDim2.fromOffset(4, 4),
     false,
     0,
     12
 )
-SidebarShell.inline.BackgroundTransparency = 0.28
-SidebarShell.background.BackgroundTransparency = 0.66
+SidebarShell.outline.BackgroundTransparency = 0.48
+SidebarShell.inline.BackgroundTransparency = 0.7
+SidebarShell.background.BackgroundTransparency = 0.92
 
 WindowShell.sidebarTint = create("Frame", {
     Parent = SidebarShell.background,
@@ -973,7 +961,7 @@ WindowShell.sidebarTint = create("Frame", {
     BackgroundColor3 = Theme.section,
     Position = UDim2.fromOffset(0, 0),
     Size = UDim2.new(1, 0, 1, 0),
-    BackgroundTransparency = 0.92,
+    BackgroundTransparency = 1,
     ZIndex = 14,
 })
 registerTheme("section", WindowShell.sidebarTint, "BackgroundColor3")
@@ -986,11 +974,24 @@ WindowShell.sidebarTintGradient = applyGradient(
 )
 registerTheme("sectionContrast", WindowShell.sidebarTintGradient, "Color")
 
+WindowShell.sidebarTitle = createThemedText(SidebarShell.background, {
+    Parent = SidebarShell.background,
+    BackgroundTransparency = 1,
+    Position = UDim2.fromOffset(SidebarPadding, 6),
+    Size = UDim2.new(1, -(SidebarPadding * 2), 0, SidebarTitleHeight),
+    Font = Enum.Font.GothamBold,
+    Text = "NeverPaste",
+    TextSize = 18,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextYAlignment = Enum.TextYAlignment.Center,
+    ZIndex = 15,
+}, false)
+
 local TabHolder = create("Frame", {
     Parent = SidebarShell.background,
     BackgroundTransparency = 1,
-    Position = UDim2.fromOffset(6, 6),
-    Size = UDim2.new(1, -12, 1, -12),
+    Position = UDim2.fromOffset(6, SidebarTitleHeight + 14),
+    Size = UDim2.new(1, -12, 1, -(SidebarTitleHeight + 42)),
     ZIndex = 15,
 })
 
@@ -1024,11 +1025,11 @@ local SearchButton
 local InfoButton
 do
     local bottomBar = create("Frame", {
-        Parent = WindowShell.background,
+        Parent = SidebarShell.background,
         BackgroundTransparency = 1,
         Position = UDim2.new(0, 6, 1, -22),
         Size = UDim2.new(1, -12, 0, 16),
-        ZIndex = 14,
+        ZIndex = 15,
     })
 
     ConfigButton = create("ImageButton", {
