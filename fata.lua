@@ -116,6 +116,44 @@ local function generateRuntimeName(prefix)
 end
 
 local LocalPlayer = cloneInstance(Services.Players.LocalPlayer)
+local SidebarProfilePlaceholderText = "Till: Lifetime"
+
+local function getSidebarProfileData()
+    local displayName = "Player"
+    local avatarImage = ""
+
+    if LocalPlayer then
+        local resolvedDisplayName
+        pcall(function()
+            resolvedDisplayName = LocalPlayer.DisplayName
+        end)
+
+        if type(resolvedDisplayName) == "string" and resolvedDisplayName ~= "" then
+            displayName = resolvedDisplayName
+        elseif type(LocalPlayer.Name) == "string" and LocalPlayer.Name ~= "" then
+            displayName = LocalPlayer.Name
+        end
+
+        local ok, thumbnail = pcall(function()
+            return Services.Players:GetUserThumbnailAsync(
+                LocalPlayer.UserId,
+                Enum.ThumbnailType.HeadShot,
+                Enum.ThumbnailSize.Size100x100
+            )
+        end)
+
+        if ok and type(thumbnail) == "string" then
+            avatarImage = thumbnail
+        end
+    end
+
+    return {
+        displayName = displayName,
+        subtitle = SidebarProfilePlaceholderText,
+        avatarImage = avatarImage,
+    }
+end
+
 local GlobalScope = getGlobalScope()
 local RuntimeSingletonKey = "__NEVERPASTE_RUNTIME__"
 local RuntimeHandle = {
@@ -748,6 +786,15 @@ local MenuHideEndScale = 0.965
 local SidebarWidth = 126
 local SidebarPadding = 8
 local SidebarTitleHeight = 24
+local SidebarInnerInset = 6
+local SidebarUtilityButtonSize = 20
+local SidebarUtilityBarHeight = 24
+local SidebarProfileHeight = 54
+local SidebarProfileAvatarSize = 30
+local SidebarProfileBottomPadding = 8
+local SidebarProfileGap = 8
+local SidebarTabTopInset = SidebarTitleHeight + 16
+local SidebarBottomZoneHeight = SidebarUtilityBarHeight + SidebarProfileGap + SidebarProfileHeight + SidebarProfileBottomPadding
 
 local Runtime = {
     initialized = false,
@@ -950,10 +997,11 @@ SidebarShell.outline = create("Frame", {
     BackgroundColor3 = Theme.outline,
     Position = UDim2.fromOffset(4, 4),
     Size = UDim2.new(0, SidebarWidth, 1, -8),
-    BackgroundTransparency = 0.9,
+    BackgroundTransparency = 0.42,
     ZIndex = 12,
 })
 registerTheme("outline", SidebarShell.outline, "BackgroundColor3")
+applyCorner(SidebarShell.outline, 8)
 
 SidebarShell.background = create("Frame", {
     Parent = SidebarShell.outline,
@@ -961,20 +1009,38 @@ SidebarShell.background = create("Frame", {
     BackgroundColor3 = Theme.inline,
     Position = UDim2.fromOffset(1, 1),
     Size = UDim2.new(1, -2, 1, -2),
-    BackgroundTransparency = 1,
+    BackgroundTransparency = 0.08,
     ZIndex = 13,
 })
 registerTheme("inline", SidebarShell.background, "BackgroundColor3")
+applyCorner(SidebarShell.background, 7)
+SidebarShell.background.ClipsDescendants = true
 
 WindowShell.sidebarGlass = create("Frame", {
     Parent = SidebarShell.background,
     BorderSizePixel = 0,
-    BackgroundColor3 = Theme.low,
+    BackgroundColor3 = Theme.inline,
     Size = UDim2.new(1, 0, 1, 0),
-    BackgroundTransparency = 0.88,
+    BackgroundTransparency = 0.18,
     ZIndex = 13,
 })
 registerTheme("inline", WindowShell.sidebarGlass, "BackgroundColor3")
+applyCorner(WindowShell.sidebarGlass, 7)
+
+do
+    local sidebarGlassGradient = applyGradient(WindowShell.sidebarGlass, Theme.high, Theme.low, 110)
+    registerTheme("contrast", sidebarGlassGradient, "Color")
+
+    local sidebarTopGlow = create("Frame", {
+        Parent = WindowShell.sidebarGlass,
+        BorderSizePixel = 0,
+        BackgroundColor3 = Theme.text,
+        BackgroundTransparency = 0.96,
+        Size = UDim2.new(1, 0, 0, 28),
+        ZIndex = 14,
+    })
+    registerTheme("text", sidebarTopGlow, "BackgroundColor3")
+end
 
 WindowShell.sidebarDivider = create("Frame", {
     Parent = SidebarShell.outline,
@@ -1000,11 +1066,22 @@ WindowShell.sidebarTitle = createThemedText(SidebarShell.background, {
     ZIndex = 15,
 }, false)
 
+local sidebarTitleDivider = create("Frame", {
+    Parent = SidebarShell.background,
+    BorderSizePixel = 0,
+    BackgroundColor3 = Theme.outline,
+    BackgroundTransparency = 0.78,
+    Position = UDim2.fromOffset(SidebarPadding, SidebarTabTopInset - 2),
+    Size = UDim2.new(1, -(SidebarPadding * 2), 0, 1),
+    ZIndex = 14,
+})
+registerTheme("outline", sidebarTitleDivider, "BackgroundColor3")
+
 local TabHolder = create("Frame", {
     Parent = SidebarShell.background,
     BackgroundTransparency = 1,
-    Position = UDim2.fromOffset(6, SidebarTitleHeight + 14),
-    Size = UDim2.new(1, -12, 1, -(SidebarTitleHeight + 42)),
+    Position = UDim2.fromOffset(SidebarInnerInset, SidebarTabTopInset),
+    Size = UDim2.new(1, -(SidebarInnerInset * 2), 1, -(SidebarTabTopInset + SidebarBottomZoneHeight)),
     ZIndex = 15,
 })
 
@@ -1037,53 +1114,164 @@ local ConfigButton
 local SearchButton
 local InfoButton
 do
+    local sidebarProfile = getSidebarProfileData()
+
     local bottomBar = create("Frame", {
         Parent = SidebarShell.background,
-        BackgroundTransparency = 1,
-        Position = UDim2.new(0, 6, 1, -22),
-        Size = UDim2.new(1, -12, 0, 16),
-        ZIndex = 15,
+        BorderSizePixel = 0,
+        BackgroundColor3 = Theme.inline,
+        BackgroundTransparency = 0.26,
+        Position = UDim2.new(0, SidebarInnerInset, 1, -(SidebarProfileHeight + SidebarProfileBottomPadding + SidebarProfileGap + SidebarUtilityBarHeight)),
+        Size = UDim2.new(1, -(SidebarInnerInset * 2), 0, SidebarUtilityBarHeight),
+        ZIndex = 16,
     })
+    registerTheme("inline", bottomBar, "BackgroundColor3")
+    applyCorner(bottomBar, 7)
+    do
+        local utilityGradient = applyGradient(bottomBar, Theme.high, Theme.low, 90)
+        registerTheme("contrast", utilityGradient, "Color")
+
+        local utilityStroke = applyStroke(bottomBar, Theme.outline, 1, 0.35)
+        registerTheme("outline", utilityStroke, "Color")
+    end
 
     ConfigButton = create("ImageButton", {
         Parent = bottomBar,
-        BackgroundTransparency = 1,
+        BackgroundColor3 = Theme.inline,
+        BackgroundTransparency = 0.18,
         BorderSizePixel = 0,
-        Position = UDim2.fromOffset(0, 0),
-        Size = UDim2.fromOffset(16, 16),
+        Position = UDim2.fromOffset(6, 2),
+        Size = UDim2.fromOffset(SidebarUtilityButtonSize, SidebarUtilityButtonSize),
         Image = IconAssets.file,
         ImageColor3 = Theme.textDim,
         AutoButtonColor = false,
-        ZIndex = 15,
+        ZIndex = 17,
     })
+    registerTheme("inline", ConfigButton, "BackgroundColor3")
     registerTheme("textDim", ConfigButton, "ImageColor3")
+    applyCorner(ConfigButton, 5)
 
     SearchButton = create("ImageButton", {
         Parent = bottomBar,
-        BackgroundTransparency = 1,
+        AnchorPoint = Vector2.new(0.5, 0),
+        BackgroundColor3 = Theme.inline,
+        BackgroundTransparency = 0.18,
         BorderSizePixel = 0,
-        Position = UDim2.fromOffset(22, 0),
-        Size = UDim2.fromOffset(16, 16),
+        Position = UDim2.new(0.5, 0, 0, 2),
+        Size = UDim2.fromOffset(SidebarUtilityButtonSize, SidebarUtilityButtonSize),
         Image = IconAssets.search,
         ImageColor3 = Theme.textDim,
         AutoButtonColor = false,
-        ZIndex = 15,
+        ZIndex = 17,
     })
+    registerTheme("inline", SearchButton, "BackgroundColor3")
     registerTheme("textDim", SearchButton, "ImageColor3")
+    applyCorner(SearchButton, 5)
 
     InfoButton = create("ImageButton", {
         Parent = bottomBar,
         AnchorPoint = Vector2.new(1, 0),
-        BackgroundTransparency = 1,
+        BackgroundColor3 = Theme.inline,
+        BackgroundTransparency = 0.18,
         BorderSizePixel = 0,
-        Position = UDim2.new(1, 0, 0, 0),
-        Size = UDim2.fromOffset(16, 16),
+        Position = UDim2.new(1, -6, 0, 2),
+        Size = UDim2.fromOffset(SidebarUtilityButtonSize, SidebarUtilityButtonSize),
         Image = IconAssets.info,
         ImageColor3 = Theme.textDim,
         AutoButtonColor = false,
-        ZIndex = 15,
+        ZIndex = 17,
     })
+    registerTheme("inline", InfoButton, "BackgroundColor3")
     registerTheme("textDim", InfoButton, "ImageColor3")
+    applyCorner(InfoButton, 5)
+
+    local profileCard = create("Frame", {
+        Parent = SidebarShell.background,
+        BorderSizePixel = 0,
+        BackgroundColor3 = Theme.inline,
+        BackgroundTransparency = 0.2,
+        Position = UDim2.new(0, SidebarInnerInset, 1, -(SidebarProfileHeight + SidebarProfileBottomPadding)),
+        Size = UDim2.new(1, -(SidebarInnerInset * 2), 0, SidebarProfileHeight),
+        ZIndex = 16,
+    })
+    registerTheme("inline", profileCard, "BackgroundColor3")
+    applyCorner(profileCard, 8)
+    do
+        local profileGradient = applyGradient(profileCard, Theme.high, Theme.low, 90)
+        registerTheme("contrast", profileGradient, "Color")
+
+        local profileStroke = applyStroke(profileCard, Theme.outline, 1, 0.28)
+        registerTheme("outline", profileStroke, "Color")
+    end
+
+    local profileAccent = create("Frame", {
+        Parent = profileCard,
+        BorderSizePixel = 0,
+        BackgroundColor3 = Theme.accent,
+        BackgroundTransparency = 0.18,
+        Position = UDim2.fromOffset(8, 6),
+        Size = UDim2.fromOffset(18, 2),
+        ZIndex = 17,
+    })
+    registerTheme("accent", profileAccent, "BackgroundColor3")
+    applyCorner(profileAccent, 2)
+
+    local avatarShell = create("Frame", {
+        Parent = profileCard,
+        BorderSizePixel = 0,
+        BackgroundColor3 = Theme.inline,
+        BackgroundTransparency = 0.12,
+        Position = UDim2.fromOffset(8, 14),
+        Size = UDim2.fromOffset(SidebarProfileAvatarSize, SidebarProfileAvatarSize),
+        ZIndex = 17,
+    })
+    registerTheme("inline", avatarShell, "BackgroundColor3")
+    applyCorner(avatarShell, 7)
+    do
+        local avatarStroke = applyStroke(avatarShell, Theme.outline, 1, 0.32)
+        registerTheme("outline", avatarStroke, "Color")
+    end
+
+    local avatarImage = create("ImageLabel", {
+        Parent = avatarShell,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.fromOffset(1, 1),
+        Size = UDim2.new(1, -2, 1, -2),
+        Image = sidebarProfile.avatarImage,
+        ImageTransparency = sidebarProfile.avatarImage ~= "" and 0 or 1,
+        ScaleType = Enum.ScaleType.Crop,
+        ZIndex = 18,
+    })
+    applyCorner(avatarImage, 6)
+
+    createThemedText(profileCard, {
+        Parent = profileCard,
+        BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(46, 12),
+        Size = UDim2.new(1, -54, 0, 16),
+        Font = Enum.Font.GothamMedium,
+        Text = sidebarProfile.displayName,
+        TextSize = 11,
+        TextTruncate = Enum.TextTruncate.AtEnd,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
+        ZIndex = 18,
+    }, false)
+
+    createThemedText(profileCard, {
+        Parent = profileCard,
+        BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(46, 26),
+        Size = UDim2.new(1, -54, 0, 14),
+        Font = Enum.Font.Gotham,
+        Text = sidebarProfile.subtitle,
+        TextSize = 9,
+        TextTruncate = Enum.TextTruncate.AtEnd,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
+        ZIndex = 18,
+    }, true)
 end
 
 local SearchShell = addShell(WindowShell.background, UDim2.fromOffset(300, 290), UDim2.new(0, 8, 1, -320), false, 0, 40)
